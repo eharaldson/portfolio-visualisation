@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Price Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #898281;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .form-container {
+            background-color: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        
+        .form-group {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 15px;
+            vertical-align: top;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="text"], input[type="date"] {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            width: 180px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input[type="text"]:focus, input[type="date"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.2);
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            margin-top: 25px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        #plotDiv {
+            background-color: #f5f5f5;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            min-height: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .info-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        
+        @media (max-width: 768px) {
+            .form-group {
+                display: block;
+                margin-right: 0;
+                width: 100%;
+            }
+            
+            input[type="text"], input[type="date"] {
+                width: 100%;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 Stock Price Visualization</h1>
+        
+        <div class="form-container">
+            <form id="stockForm">
+                <div class="form-group">
+                    <label for="ticker">Stock Ticker:</label>
+                    <input type="text" id="ticker" name="ticker" placeholder="e.g., AAPL">
+                    <div class="info-text">Leave empty for AAPL</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="start_date">Start Date:</label>
+                    <input type="date" id="start_date" name="start_date">
+                    <div class="info-text">Leave empty for 5 years ago</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="end_date">End Date:</label>
+                    <input type="date" id="end_date" name="end_date">
+                    <div class="info-text">Leave empty for today</div>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit">Generate Plot</button>
+                </div>
+            </form>
+        </div>
+        
+        <div id="plotDiv">
+            <div class="loading">
+                Enter a stock ticker and date range above, then click "Generate Plot" to visualize the stock price data.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('stockForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show loading message
+            document.getElementById('plotDiv').innerHTML = '<div class="loading">Loading stock data...</div>';
+            
+            // Get form data
+            const formData = new FormData(this);
+            
+            // Make request to Flask backend
+            fetch('/plot', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('plotDiv').innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                } else {
+                    // Parse and display the plot
+                    const plotData = JSON.parse(data.plot);
+                    Plotly.newPlot('plotDiv', plotData.data, plotData.layout, {
+                        responsive: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
+                        displaylogo: false
+                    });
+                }
+            })
+            .catch(error => {
+                document.getElementById('plotDiv').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            });
+        });
+        
+        // Set today's date as default for end date
+        document.getElementById('end_date').valueAsDate = new Date();
+        
+        // Set 5 years ago as default for start date
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        document.getElementById('start_date').valueAsDate = fiveYearsAgo;
+    </script>
+</body>
+</html>
