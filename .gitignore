@@ -172,3 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+data_prep.ipynb
+.gitignore
+PappaOrdersCleaned.csv
+PappaOrders.csv
+CaseStocks.csv
+CaseStocksSectors.csv
+PappaOrdersFiltered.csv
+OrdersFiltered.csv
