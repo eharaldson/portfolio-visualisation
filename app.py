@@ -15,7 +15,7 @@ app = Flask(__name__, template_folder=template_dir)
 def load_portfolio_info():
     """Load ticker and sector information from CSV"""
     try:
-        df = pd.read_csv('./CaseStocksSectors.csv')
+        df = pd.read_csv('CaseStocksSectors.csv')
         tickers = df['ticker'].tolist()
         
         # Get all sector columns (all columns except 'ticker')
@@ -100,7 +100,7 @@ def plot():
         portfolio_data = None
         if plot_portfolio:
             try:
-                analyzer = PortfolioAnalyzer('PappaOrdersFiltered.csv')
+                analyzer = PortfolioAnalyzer('OrdersFiltered.csv')
                 portfolio_df = analyzer.calculate_portfolio_performance(start_date, end_date)
                 if portfolio_df is not None and not portfolio_df.empty:
                     portfolio_data = portfolio_df

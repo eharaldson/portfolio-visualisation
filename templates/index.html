@@ -8,10 +8,10 @@
     <style>
         body {
             font-family: 'Arial', sans-serif;
-            background-color: #898281;
+            background-color: #35393b;
             margin: 0;
             padding: 20px;
-            color: #333;
+            color: #f5f5dc;
         }
         
         .main-container {
@@ -24,41 +24,41 @@
         
         .left-section {
             flex: 2;
-            background-color: white;
+            background-color: #2a2d2f;
             padding: 30px;
             border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
             overflow-y: auto;
         }
         
         .right-section {
             flex: 1;
-            background-color: white;
+            background-color: #2a2d2f;
             padding: 30px;
             border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
             overflow-y: auto;
         }
         
         h1 {
             text-align: center;
-            color: #2c3e50;
+            color: #f5f5dc;
             margin-bottom: 30px;
             font-size: 2.5em;
         }
         
         h2 {
-            color: #2c3e50;
+            color: #f5f5dc;
             margin-bottom: 20px;
             font-size: 1.8em;
         }
         
         .form-container {
-            background-color: #f8f9fa;
+            background-color: #3a3e40;
             padding: 25px;
             border-radius: 15px;
             margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
         
         .form-row {
@@ -77,23 +77,25 @@
             display: block;
             margin-bottom: 8px;
             font-weight: bold;
-            color: #555;
+            color: #f5f5dc;
         }
         
         input[type="text"], input[type="date"], select {
             padding: 12px;
-            border: 2px solid #ddd;
+            border: 2px solid #555;
             border-radius: 8px;
             font-size: 16px;
             width: 100%;
             box-sizing: border-box;
             transition: border-color 0.3s ease;
+            background-color: #2a2d2f;
+            color: #f5f5dc;
         }
         
         input[type="text"]:focus, input[type="date"]:focus, select:focus {
             outline: none;
             border-color: #4CAF50;
-            box-shadow: 0 0 10px rgba(76, 175, 80, 0.2);
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
         }
         
         .multi-select {
@@ -107,8 +109,8 @@
             right: 0;
             max-height: 200px;
             overflow-y: auto;
-            background: white;
-            border: 2px solid #ddd;
+            background: #2a2d2f;
+            border: 2px solid #555;
             border-top: none;
             border-radius: 0 0 8px 8px;
             display: none;
@@ -123,14 +125,15 @@
             padding: 8px 12px;
             cursor: pointer;
             transition: background-color 0.2s;
+            color: #f5f5dc;
         }
         
         .multi-select-option:hover {
-            background-color: #f0f0f0;
+            background-color: #3a3e40;
         }
         
         .multi-select-option.selected {
-            background-color: #e8f5e9;
+            background-color: #4a5052;
         }
         
         .multi-select-option input[type="checkbox"] {
@@ -174,39 +177,39 @@
         }
         
         #plotDiv {
-            background-color: #f5f5f5;
+            background-color: #2a2d2f;
             border-radius: 15px;
             padding: 20px;
             margin-top: 20px;
             min-height: 500px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
         
         .loading {
             text-align: center;
             padding: 50px;
             font-size: 18px;
-            color: #666;
+            color: #b0b0b0;
         }
         
         .error {
-            background-color: #f8d7da;
-            color: #721c24;
+            background-color: #5a2a2a;
+            color: #ff9999;
             padding: 15px;
             border-radius: 8px;
             margin: 20px 0;
-            border: 1px solid #f5c6cb;
+            border: 1px solid #8a4a4a;
         }
         
         .info-text {
-            color: #666;
+            color: #b0b0b0;
             font-size: 14px;
             margin-top: 10px;
             font-style: italic;
         }
         
         .news-placeholder {
-            color: #666;
+            color: #b0b0b0;
             text-align: center;
             margin-top: 50px;
         }
@@ -388,34 +391,22 @@
         
         // Plot portfolio performance
         async function plotPortfolio() {
-            document.getElementById('plotDiv').innerHTML = '<div class="loading">Loading portfolio data...</div>';
+            // Instead of clearing, we'll submit the form with portfolio flag
+            // This will add portfolio to whatever else is selected
             
-            const formData = new FormData();
-            formData.append('start_date', document.getElementById('start_date').value);
-            formData.append('end_date', document.getElementById('end_date').value);
-            formData.append('plot_portfolio', 'true');
-            
-            try {
-                const response = await fetch('/plot', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                
-                if (data.error) {
-                    document.getElementById('plotDiv').innerHTML = `<div class="error">Error: ${data.error}</div>`;
-                } else {
-                    const plotData = JSON.parse(data.plot);
-                    Plotly.newPlot('plotDiv', plotData.data, plotData.layout, {
-                        responsive: true,
-                        displayModeBar: true,
-                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
-                        displaylogo: false
-                    });
-                }
-            } catch (error) {
-                document.getElementById('plotDiv').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            // Create a hidden input to indicate we want to include portfolio
+            let portfolioInput = document.getElementById('include_portfolio');
+            if (!portfolioInput) {
+                portfolioInput = document.createElement('input');
+                portfolioInput.type = 'hidden';
+                portfolioInput.id = 'include_portfolio';
+                portfolioInput.name = 'plot_portfolio';
+                document.getElementById('stockForm').appendChild(portfolioInput);
             }
+            portfolioInput.value = 'true';
+            
+            // Submit the form
+            document.getElementById('stockForm').dispatchEvent(new Event('submit'));
         }
         
         // Clear plot
@@ -431,6 +422,12 @@
                 const checkbox = option.querySelector('input[type="checkbox"]');
                 if (checkbox) checkbox.checked = false;
             });
+            
+            // Also clear the portfolio flag
+            const portfolioInput = document.getElementById('include_portfolio');
+            if (portfolioInput) {
+                portfolioInput.value = 'false';
+            }
         }
         
         // Handle form submission
@@ -451,6 +448,12 @@
                 formData.append('selected_sectors', selectedSectors.join(','));
             }
             
+            // Check if we should include portfolio (from hidden input)
+            const portfolioInput = document.getElementById('include_portfolio');
+            if (!portfolioInput || portfolioInput.value !== 'true') {
+                formData.append('plot_portfolio', 'false');
+            }
+            
             try {
                 const response = await fetch('/plot', {
                     method: 'POST',
@@ -468,6 +471,11 @@
                         modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
                         displaylogo: false
                     });
+                }
+                
+                // Reset portfolio flag after plotting
+                if (portfolioInput && portfolioInput.value === 'true') {
+                    portfolioInput.value = 'false';
                 }
             } catch (error) {
                 document.getElementById('plotDiv').innerHTML = `<div class="error">Error: ${error.message}</div>`;
