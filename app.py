@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
+from portfolio_visualiser_helper import get_sector_plot
 
 template_dir = 'Templates'
 app = Flask(__name__, template_folder=template_dir)
@@ -94,7 +95,7 @@ def plot():
                     if sector_tickers:
                         # We'll calculate sector average later
                         tickers_to_plot.append(('sector', sector, sector_tickers))
-                        trace_names.append(f"{sector} (Sector Avg)")
+                        trace_names.append(f"{sector} (Sector)")
         
         # Add portfolio if requested
         portfolio_data = None
@@ -110,7 +111,9 @@ def plot():
         # Fetch stock data for all tickers
         all_data = {}
         for item in tickers_to_plot:
+            
             if isinstance(item, tuple) and item[0] == 'sector':
+
                 # Handle sector - fetch all tickers in the sector
                 _, sector_name, sector_tickers = item
                 sector_data = {}
@@ -118,23 +121,17 @@ def plot():
                     try:
                         stock = yf.Ticker(t)
                         data = stock.history(start=start_date, end=end_date)
+                        data['Close_change'] = data['Close'].pct_change().fillna(0)
+
                         if not data.empty:
-                            sector_data[t] = data['Close']
+                            sector_data[t] = data[['Close', 'Close_change']]
                     except Exception as e:
                         print(f"Error fetching {t}: {e}")
                 
                 if sector_data:
-                    # Calculate sector average (normalized)
-                    normalized_data = {}
-                    for t, prices in sector_data.items():
-                        if len(prices) > 0:
-                            normalized = (prices / prices.iloc[0]) * 100
-                            normalized_data[t] = normalized
-                    
-                    # Calculate average
-                    df_normalized = pd.DataFrame(normalized_data)
-                    sector_avg = df_normalized.mean(axis=1)
-                    all_data[('sector', sector_name)] = sector_avg
+                    # Calculate sector plot by weighting of tickers
+                    sector_plot = get_sector_plot(sector_data)
+                    all_data[('sector', sector_name)] = sector_plot
             else:
                 # Handle individual ticker
                 try:
@@ -173,8 +170,8 @@ def plot():
         # Add traces for all data
         for i, (key, data) in enumerate(all_data.items()):
             if isinstance(key, tuple) and key[0] == 'sector':
-                name = f"{key[1]} (Sector Avg)"
-                line_style = dict(width=2, dash='dash', color=colors[color_index % len(colors)])
+                name = f"{key[1]} (Sector)"
+                line_style = dict(width=2, color=colors[color_index % len(colors)])
             else:
                 name = key
                 line_style = dict(width=2, color=colors[color_index % len(colors)])
