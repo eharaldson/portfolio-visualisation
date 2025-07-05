@@ -22,23 +22,38 @@ def get_sector_plot(sector_data: dict[str, pd.DataFrame]) -> list[float]:
 
     sector_normalised = [100]
 
+    # Ensure we are looking at the longest length of data to catch all historical data
+    max_length_index = None
+    max_length = 0
+
+    for ticker in sector_tickers:
+        length_data = len(sector_data[ticker])
+        if length_data > max_length:
+            max_length = length_data
+            max_length_index = sector_data[ticker].index
+
     # Loop through and add weighting for each ticker in the sector
-    for i in range(len(sector_data[sector_tickers[0]])):
+    for timestamp in max_length_index:
 
         # Get order data before the current date
-        timestamp = sector_data[sector_tickers[0]].index[i]
         t = timestamp.date()
         current_datetime = datetime(t.year, t.month, t.day)
         current_order_data = df_orders[df_orders['date'] <= current_datetime]
 
+        # Calculate the value of the shares owned for each ticker
         ticker_value = {ticker: current_order_data[current_order_data['ticker'] == ticker]['num_shares'].sum() for ticker in sector_tickers}
 
+        # Calculate weighting of share ownership as fraction of total sector value
         ticker_weightings = {ticker: ticker_value[ticker] / sum(ticker_value.values()) if sum(ticker_value.values()) > 0 else 0 for ticker in sector_tickers}
-        ticker_weightings['Date'] = timestamp
 
         # Calculate weighted change for each ticker
-        weighted_change = sum((sector_data[ticker].iloc[i]['Close_change']) * ticker_weightings[ticker] for ticker in sector_tickers)
-        
+        weighted_change = 0
+        for ticker in sector_tickers:
+            if timestamp in sector_data[ticker].index:
+                # Get the close change for the ticker at the current timestamp
+                close_change = sector_data[ticker].loc[timestamp]['Close_change']
+                weighted_change += close_change * ticker_weightings[ticker]
+
         sector_normalised.append(sector_normalised[-1] * (1 + weighted_change))
 
     # Get the data in a series with date in the index for plotting
@@ -49,12 +64,12 @@ def get_sector_plot(sector_data: dict[str, pd.DataFrame]) -> list[float]:
 if __name__ == "__main__":
 
     df_cases = pd.read_csv('CaseStocks.csv')
-    sector_tickers = df_cases[df_cases['Sector'] == 'Oil rigs']['Ticker'].tolist()
+    sector_tickers = df_cases['Ticker'].tolist()
     # sector_tickers = ['CNQ']
 
     print(f"Sector tickers: {sector_tickers}")
 
-    start_date = (datetime.now() - timedelta(days=365*4)).strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')
     print(f"Start date: {start_date}")
     end_date = datetime.now().strftime('%Y-%m-%d')
 

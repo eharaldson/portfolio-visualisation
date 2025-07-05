@@ -98,13 +98,24 @@ def plot():
                         trace_names.append(f"{sector} (Sector)")
         
         # Add portfolio if requested
-        portfolio_data = None
+        portfolio_data = {}
         if plot_portfolio:
             try:
-                analyzer = PortfolioAnalyzer('OrdersFiltered.csv')
-                portfolio_df = analyzer.calculate_portfolio_performance(start_date, end_date)
-                if portfolio_df is not None and not portfolio_df.empty:
-                    portfolio_data = portfolio_df
+                for t in portfolio_info['tickers']:
+                    try:
+                        stock = yf.Ticker(t)
+                        data = stock.history(start=start_date, end=end_date)
+                        data['Close_change'] = data['Close'].pct_change().fillna(0)
+
+                        if not data.empty:
+                            portfolio_data[t] = data[['Close', 'Close_change']]
+                    except Exception as e:
+                        print(f"Error fetching {t}: {e}")
+                
+                if portfolio_data:
+                    # Calculate sector plot by weighting of tickers
+                    portfolio_plot = get_sector_plot(portfolio_data)
+                
             except Exception as e:
                 print(f"Error calculating portfolio performance: {e}")
         
@@ -153,10 +164,10 @@ def plot():
         
         # Add portfolio trace first if available
         color_index = 0
-        if portfolio_data is not None:
+        if plot_portfolio:
             fig.add_trace(go.Scatter(
-                x=portfolio_data['date'],
-                y=portfolio_data['return_normalized'] * 100,  # Convert to percentage
+                x=portfolio_plot.index,
+                y=portfolio_plot.values,  # Convert to percentage
                 mode='lines',
                 name='Portfolio',
                 line=dict(width=3, color='#2E86AB'),
