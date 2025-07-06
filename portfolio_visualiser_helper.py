@@ -22,7 +22,7 @@ def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
         list[float]: List of weighted changes for each ticker in the sector.
     """
     # Read the order data from CSV
-    df_orders = pd.read_csv('OrdersFiltered.csv')
+    df_orders = pd.read_csv('Orders.csv')
     df_orders['date'] = pd.to_datetime(df_orders['date'], format='%d/%m/%Y')
 
     selected_tickers = list(ticker_data.keys())
@@ -78,7 +78,7 @@ def get_value_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
         list[float]: List of weighted changes for each ticker in the sector.
     """
     # Read the order data from CSV
-    df_orders = pd.read_csv('OrdersFiltered.csv')
+    df_orders = pd.read_csv('Orders.csv')
     df_orders['date'] = pd.to_datetime(df_orders['date'], format='%d/%m/%Y')
 
     selected_tickers = list(ticker_data.keys())

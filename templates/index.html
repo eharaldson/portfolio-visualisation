@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -80,7 +81,7 @@
             color: #f5f5dc;
         }
         
-        input[type="text"], input[type="date"], select {
+        input[type="text"], input[type="date"], input[type="number"], select {
             padding: 12px;
             border: 2px solid #555;
             border-radius: 8px;
@@ -92,7 +93,7 @@
             color: #f5f5dc;
         }
         
-        input[type="text"]:focus, input[type="date"]:focus, select:focus {
+        input[type="text"]:focus, input[type="date"]:focus, input[type="number"]:focus, select:focus {
             outline: none;
             border-color: #4CAF50;
             box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
@@ -175,6 +176,30 @@
         button.secondary:hover {
             background-color: #236a8a;
         }
+
+        button.order-btn {
+            background-color: #F18F01;
+        }
+
+        button.order-btn:hover {
+            background-color: #d47701;
+        }
+
+        button.edit-btn {
+            background-color: #A23B72;
+        }
+
+        button.edit-btn:hover {
+            background-color: #8a2f5e;
+        }
+
+        button.delete-btn {
+            background-color: #C73E1D;
+        }
+
+        button.delete-btn:hover {
+            background-color: #a52e16;
+        }
         
         #plotDiv {
             background-color: #2a2d2f;
@@ -200,6 +225,15 @@
             margin: 20px 0;
             border: 1px solid #8a4a4a;
         }
+
+        .success {
+            background-color: #2a5a2a;
+            color: #99ff99;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #4a8a4a;
+        }
         
         .info-text {
             color: #b0b0b0;
@@ -208,10 +242,53 @@
             font-style: italic;
         }
         
-        .news-placeholder {
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            background-color: #2a2d2f;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .close {
             color: #b0b0b0;
-            text-align: center;
-            margin-top: 50px;
+            float: right;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        
+        .close:hover {
+            color: #f5f5dc;
+        }
+
+        .order-management {
+            margin-bottom: 20px;
+        }
+
+        .order-section {
+            margin-bottom: 25px;
         }
         
         @media (max-width: 1024px) {
@@ -222,6 +299,11 @@
             
             .left-section, .right-section {
                 flex: 1;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 2% auto;
             }
         }
     </style>
@@ -283,10 +365,104 @@
         </div>
         
         <div class="right-section">
-            <h2>📰 Market News</h2>
-            <div class="news-placeholder">
-                <p>News feed coming soon...</p>
+            <h2>📊 Order Management</h2>
+            
+            <div class="order-management">
+                <div class="order-section">
+                    <div class="button-group">
+                        <button class="order-btn" onclick="downloadOrders()">📥 Download Orders</button>
+                        <button class="order-btn" onclick="openAddOrderModal()">➕ Add Order</button>
+                    </div>
+                </div>
+                
+                <div class="order-section">
+                    <div class="button-group">
+                        <button class="edit-btn" onclick="editLastOrder()">✏️ Edit Last</button>
+                        <button class="delete-btn" onclick="deleteLastOrder()">🗑️ Delete Last</button>
+                    </div>
+                </div>
             </div>
+
+            <div id="orderStatus"></div>
+        </div>
+    </div>
+
+    <!-- Order Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeOrderModal()">&times;</span>
+            <h2 id="modalTitle">Add New Order</h2>
+            
+            <form id="orderForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="orderDate">Date:</label>
+                        <input type="date" id="orderDate" name="date" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="orderType">Order Type:</label>
+                        <select id="orderType" name="order_type" required>
+                            <option value="">Select type</option>
+                            <option value="buy">Buy</option>
+                            <option value="sell">Sell</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="orderTicker">Ticker:</label>
+                        <input type="text" id="orderTicker" name="ticker" required placeholder="e.g., AAPL">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="orderCompany">Company:</label>
+                        <input type="text" id="orderCompany" name="company" required placeholder="Company name">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="orderShares">Number of Shares:</label>
+                        <input type="number" id="orderShares" name="num_shares" step="0.001" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="orderPrice">Price per Share:</label>
+                        <input type="number" id="orderPrice" name="price" step="0.01" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="foreignCommission">Foreign Commission:</label>
+                        <input type="number" id="foreignCommission" name="foreign_commission" step="0.01" value="0">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="domesticCommission">Domestic Commission:</label>
+                        <input type="number" id="domesticCommission" name="domestic_commission" step="0.01" value="0">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="splitRatio">Split Ratio (optional):</label>
+                        <input type="text" id="splitRatio" name="split_ratio" placeholder="e.g., 2:1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="mergerOldTicker">Merger Old Ticker (optional):</label>
+                        <input type="text" id="mergerOldTicker" name="merger_old_ticker" placeholder="Old ticker symbol">
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit" id="submitOrderBtn">Add Order</button>
+                    <button type="button" class="secondary" onclick="closeOrderModal()">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -295,6 +471,7 @@
         let selectedSectors = [];
         let portfolioData = {};
         let sectorData = {};
+        let isEditMode = false;
         
         // Initialize the page
         async function initialize() {
@@ -303,6 +480,9 @@
             const fiveYearsAgo = new Date();
             fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
             document.getElementById('start_date').valueAsDate = fiveYearsAgo;
+            
+            // Set default order date to today
+            document.getElementById('orderDate').valueAsDate = new Date();
             
             // Load portfolio data
             await loadPortfolioData();
@@ -391,9 +571,6 @@
         
         // Plot portfolio performance
         async function plotPortfolio() {
-            // Instead of clearing, we'll submit the form with portfolio flag
-            // This will add portfolio to whatever else is selected
-            
             // Create a hidden input to indicate we want to include portfolio
             let portfolioInput = document.getElementById('include_portfolio');
             if (!portfolioInput) {
@@ -429,8 +606,115 @@
                 portfolioInput.value = 'false';
             }
         }
+
+        // Order management functions
+        async function downloadOrders() {
+            try {
+                const response = await fetch('/download_orders');
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'Orders.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showStatus('Orders downloaded successfully!', 'success');
+                } else {
+                    const errorData = await response.json();
+                    showStatus(`Error: ${errorData.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error downloading orders: ${error.message}`, 'error');
+            }
+        }
+
+        function openAddOrderModal() {
+            isEditMode = false;
+            document.getElementById('modalTitle').textContent = 'Add New Order';
+            document.getElementById('submitOrderBtn').textContent = 'Add Order';
+            clearOrderForm();
+            document.getElementById('orderModal').style.display = 'block';
+        }
+
+        async function editLastOrder() {
+            try {
+                const response = await fetch('/get_last_order');
+                if (response.ok) {
+                    const data = await response.json();
+                    const order = data.order;
+                    
+                    isEditMode = true;
+                    document.getElementById('modalTitle').textContent = 'Edit Last Order';
+                    document.getElementById('submitOrderBtn').textContent = 'Update Order';
+                    
+                    // Populate form with order data
+                    document.getElementById('orderDate').value = order.date;
+                    document.getElementById('orderType').value = order.order_type;
+                    document.getElementById('orderTicker').value = order.ticker;
+                    document.getElementById('orderCompany').value = order.company;
+                    document.getElementById('orderShares').value = order.num_shares;
+                    document.getElementById('orderPrice').value = order.price;
+                    document.getElementById('foreignCommission').value = order.foreign_commission || 0;
+                    document.getElementById('domesticCommission').value = order.domestic_commission || 0;
+                    document.getElementById('splitRatio').value = order.split_ratio || '';
+                    document.getElementById('mergerOldTicker').value = order.merger_old_ticker || '';
+                    
+                    document.getElementById('orderModal').style.display = 'block';
+                } else {
+                    const errorData = await response.json();
+                    showStatus(`Error: ${errorData.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error loading last order: ${error.message}`, 'error');
+            }
+        }
+
+        async function deleteLastOrder() {
+            if (!confirm('Are you sure you want to delete the last order? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/delete_last_order', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(data.message, 'success');
+                } else {
+                    showStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error deleting order: ${error.message}`, 'error');
+            }
+        }
+
+        function closeOrderModal() {
+            document.getElementById('orderModal').style.display = 'none';
+            clearOrderForm();
+        }
+
+        function clearOrderForm() {
+            document.getElementById('orderForm').reset();
+            document.getElementById('orderDate').valueAsDate = new Date();
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('orderStatus');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
         
-        // Handle form submission
+        // Handle form submission for plotting
         document.getElementById('stockForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -479,6 +763,40 @@
                 }
             } catch (error) {
                 document.getElementById('plotDiv').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        });
+
+        // Handle order form submission
+        document.getElementById('orderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const endpoint = isEditMode ? '/update_last_order' : '/add_order';
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(data.message, 'success');
+                    closeOrderModal();
+                } else {
+                    showStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error submitting order: ${error.message}`, 'error');
+            }
+        });
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('orderModal');
+            if (event.target === modal) {
+                closeOrderModal();
             }
         });
         

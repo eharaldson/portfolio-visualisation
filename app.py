@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 import yfinance as yf
 import plotly.graph_objs as go
 import plotly.utils
@@ -8,6 +8,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
 from portfolio_visualiser_helper import get_sector_plot
+import os
 
 template_dir = 'Templates'
 app = Flask(__name__, template_folder=template_dir)
@@ -51,6 +52,151 @@ def get_portfolio_data():
     """API endpoint to get portfolio tickers and sectors"""
     return jsonify(portfolio_info)
 
+@app.route('/download_orders')
+def download_orders():
+    """Download the Orders.csv file"""
+    try:
+        orders_file = 'Orders.csv'
+        if os.path.exists(orders_file):
+            return send_file(orders_file, as_attachment=True, download_name='Orders.csv')
+        else:
+            return jsonify({'error': 'Orders.csv file not found'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error downloading file: {str(e)}'}), 500
+
+@app.route('/get_orders')
+def get_orders():
+    """Get all orders for display"""
+    try:
+        orders_file = 'Orders.csv'
+        if os.path.exists(orders_file):
+            df = pd.read_csv(orders_file)
+            # Convert to list of dictionaries for JSON response
+            orders = df.to_dict('records')
+            return jsonify({'orders': orders})
+        else:
+            return jsonify({'orders': []})
+    except Exception as e:
+        return jsonify({'error': f'Error reading orders: {str(e)}'}), 500
+
+@app.route('/add_order', methods=['POST'])
+def add_order():
+    """Add a new order to the Orders.csv file"""
+    try:
+        # Get form data
+        order_data = {
+            'date': request.form.get('date'),
+            'num_shares': float(request.form.get('num_shares')),
+            'company': request.form.get('company'),
+            'ticker': request.form.get('ticker').upper(),
+            'price': float(request.form.get('price')),
+            'foreign_commission': float(request.form.get('foreign_commission', 0)),
+            'domestic_commission': float(request.form.get('domestic_commission', 0)),
+            'order_type': request.form.get('order_type'),
+            'split_ratio': request.form.get('split_ratio', ''),
+            'merger_old_ticker': request.form.get('merger_old_ticker', '')
+        }
+        
+        orders_file = 'Orders.csv'
+        
+        # Check if file exists
+        if os.path.exists(orders_file):
+            # Read existing data
+            df = pd.read_csv(orders_file)
+            # Append new order
+            new_order_df = pd.DataFrame([order_data])
+            df = pd.concat([df, new_order_df], ignore_index=True)
+        else:
+            # Create new file
+            df = pd.DataFrame([order_data])
+        
+        # Save to CSV
+        df.to_csv(orders_file, index=False)
+        
+        return jsonify({'success': True, 'message': 'Order added successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error adding order: {str(e)}'}), 500
+
+@app.route('/get_last_order')
+def get_last_order():
+    """Get the last order for editing"""
+    try:
+        orders_file = 'Orders.csv'
+        if os.path.exists(orders_file):
+            df = pd.read_csv(orders_file)
+            if not df.empty:
+                last_order = df.iloc[-1].to_dict()
+                order_json = jsonify({'order': last_order})
+                return order_json
+            else:
+                return jsonify({'error': 'No orders found'}), 404
+        else:
+            return jsonify({'error': 'Orders.csv file not found'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error getting last order: {str(e)}'}), 500
+
+@app.route('/update_last_order', methods=['POST'])
+def update_last_order():
+    """Update the last order"""
+    try:
+        orders_file = 'Orders.csv'
+        if not os.path.exists(orders_file):
+            return jsonify({'error': 'Orders.csv file not found'}), 404
+        
+        df = pd.read_csv(orders_file)
+        if df.empty:
+            return jsonify({'error': 'No orders to update'}), 404
+        
+        # Update the last row with new data
+        order_data = {
+            'date': request.form.get('date'),
+            'num_shares': float(request.form.get('num_shares')),
+            'company': request.form.get('company'),
+            'ticker': request.form.get('ticker').upper(),
+            'price': float(request.form.get('price')),
+            'foreign_commission': float(request.form.get('foreign_commission', 0)),
+            'domestic_commission': float(request.form.get('domestic_commission', 0)),
+            'order_type': request.form.get('order_type'),
+            'split_ratio': request.form.get('split_ratio', ''),
+            'merger_old_ticker': request.form.get('merger_old_ticker', '')
+        }
+        
+        # Update last row
+        for key, value in order_data.items():
+            df.iloc[-1, df.columns.get_loc(key)] = value
+        
+        # Save to CSV
+        df.to_csv(orders_file, index=False)
+        
+        return jsonify({'success': True, 'message': 'Order updated successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error updating order: {str(e)}'}), 500
+
+@app.route('/delete_last_order', methods=['POST'])
+def delete_last_order():
+    """Delete the last order"""
+    try:
+        orders_file = 'Orders.csv'
+        if not os.path.exists(orders_file):
+            return jsonify({'error': 'Orders.csv file not found'}), 404
+        
+        df = pd.read_csv(orders_file)
+        if df.empty:
+            return jsonify({'error': 'No orders to delete'}), 404
+        
+        # Remove the last row
+        df = df.iloc[:-1]
+        
+        # Save to CSV
+        df.to_csv(orders_file, index=False)
+        
+        return jsonify({'success': True, 'message': 'Order deleted successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error deleting order: {str(e)}'}), 500
+    
 @app.route('/plot', methods=['POST'])
 def plot():
     # Get form data
