@@ -255,11 +255,13 @@
         
         .modal-content {
             background-color: #2a2d2f;
-            margin: 5% auto;
+            margin: 2% auto;
             padding: 30px;
             border-radius: 15px;
-            width: 90%;
-            max-width: 600px;
+            width: 95%;
+            max-width: 1000px;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: 0 15px 50px rgba(0,0,0,0.5);
             animation: modalSlideIn 0.3s ease-out;
         }
@@ -302,6 +304,87 @@
 
         .order-section {
             margin-bottom: 25px;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #555;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload-area:hover {
+            border-color: #4CAF50;
+            background-color: #3a3e40;
+        }
+
+        .file-upload-area.dragover {
+            border-color: #4CAF50;
+            background-color: #3a3e40;
+        }
+
+        .upload-placeholder {
+            color: #b0b0b0;
+            font-size: 16px;
+            padding: 20px;
+        }
+
+        .required-columns {
+            background-color: #3a3e40;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+
+        .required-columns code {
+            color: #4CAF50;
+            background: none;
+        }
+
+        .upload-step {
+            min-height: 300px;
+        }
+
+        .warning-box {
+            background-color: #5a4a2a;
+            color: #ffcc99;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #8a6a2a;
+            text-align: center;
+        }
+
+        .csv-preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 12px;
+            background-color: #3a3e40;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .csv-preview-table th,
+        .csv-preview-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #555;
+        }
+
+        .csv-preview-table th {
+            background-color: #4a5052;
+            font-weight: bold;
+        }
+
+        .csv-preview-table tr:last-child td {
+            border-bottom: none;
         }
 
         .header-section {
@@ -348,8 +431,27 @@
             }
             
             .modal-content {
-                width: 95%;
-                margin: 2% auto;
+                width: 98%;
+                max-width: none;
+                margin: 1% auto;
+                padding: 20px 15px;
+                max-height: 95vh;
+            }
+
+            .csv-preview-table {
+                font-size: 10px;
+            }
+
+            .csv-preview-table th,
+            .csv-preview-table td {
+                padding: 4px 6px;
+                min-width: 60px;
+            }
+
+            .header-section {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
             }
         }
     </style>
@@ -435,6 +537,7 @@
                     <div class="button-group">
                         <button class="order-btn" onclick="downloadOrders()">📥 Download Orders</button>
                         <button class="order-btn" onclick="openAddOrderModal()">➕ Add Order</button>
+                        <button class="order-btn" onclick="openUploadModal()">📤 Upload CSV</button>
                     </div>
                 </div>
                 
@@ -526,6 +629,54 @@
                     <button type="button" class="secondary" onclick="closeOrderModal()">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Upload CSV Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeUploadModal()">&times;</span>
+            <h2 id="uploadModalTitle">Upload Orders CSV</h2>
+            
+            <div id="uploadStep1" class="upload-step">
+                <p>Upload a CSV file with your stock orders. The file must contain these columns:</p>
+                <div class="required-columns">
+                    <code>date, num_shares, company, ticker, price, foreign_commission, domestic_commission, order_type, split_ratio, merger_old_ticker</code>
+                </div>
+                
+                <div class="file-upload-area" id="fileUploadArea">
+                    <input type="file" id="csvFile" accept=".csv" style="display: none;">
+                    <div class="upload-placeholder" onclick="document.getElementById('csvFile').click()">
+                        📁 Click to select CSV file or drag and drop
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button type="button" onclick="console.log('Upload button clicked'); uploadCSV()" id="uploadBtn" disabled>Validate & Preview</button>
+                    <button type="button" class="secondary" onclick="closeUploadModal()">Cancel</button>
+                </div>
+            </div>
+            
+            <div id="uploadStep2" class="upload-step" style="display: none;">
+                <h3>CSV Validation Results</h3>
+                <div id="validationResults"></div>
+                <div id="previewSection" style="display: none;">
+                    <h4>Preview (first 3 rows):</h4>
+                    <div class="csv-preview-container">
+                        <div id="csvPreview"></div>
+                    </div>
+                </div>
+                
+                <div class="warning-box">
+                    ⚠️ <strong>Warning:</strong> This will replace your existing orders file. Your current orders will be backed up automatically.
+                </div>
+                
+                <div class="button-group">
+                    <button type="button" onclick="confirmUpload()" id="confirmBtn" class="delete-btn">Replace Orders File</button>
+                    <button type="button" class="secondary" onclick="backToUpload()">Back</button>
+                    <button type="button" class="secondary" onclick="closeUploadModal()">Cancel</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -882,6 +1033,208 @@
             setTimeout(() => {
                 statusDiv.innerHTML = '';
             }, 5000);
+        }
+
+        // CSV Upload Functions
+        function openUploadModal() {
+            document.getElementById('uploadModal').style.display = 'block';
+            document.getElementById('uploadStep1').style.display = 'block';
+            document.getElementById('uploadStep2').style.display = 'none';
+            resetUploadForm();
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+            resetUploadForm();
+        }
+
+        function resetUploadForm() {
+            document.getElementById('csvFile').value = '';
+            document.getElementById('uploadBtn').disabled = true;
+            document.querySelector('.upload-placeholder').textContent = '📁 Click to select CSV file or drag and drop';
+            document.getElementById('validationResults').innerHTML = '';
+            document.getElementById('csvPreview').innerHTML = '';
+        }
+
+        function backToUpload() {
+            document.getElementById('uploadStep1').style.display = 'block';
+            document.getElementById('uploadStep2').style.display = 'none';
+        }
+
+        // File selection handler
+        document.getElementById('csvFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.querySelector('.upload-placeholder').textContent = `📄 ${file.name}`;
+                document.getElementById('uploadBtn').disabled = false;
+            } else {
+                document.querySelector('.upload-placeholder').textContent = '📁 Click to select CSV file or drag and drop';
+                document.getElementById('uploadBtn').disabled = true;
+            }
+        });
+
+        // Drag and drop functionality
+        const uploadArea = document.getElementById('fileUploadArea');
+        
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.name.toLowerCase().endsWith('.csv')) {
+                    document.getElementById('csvFile').files = files;
+                    document.querySelector('.upload-placeholder').textContent = `📄 ${file.name}`;
+                    document.getElementById('uploadBtn').disabled = false;
+                } else {
+                    showStatus('Please select a CSV file', 'error');
+                }
+            }
+        });
+
+        async function uploadCSV() {
+            console.log('uploadCSV function called');
+            
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                console.log('No file selected');
+                showStatus('Please select a file', 'error');
+                return;
+            }
+
+            console.log('File selected:', file.name, 'Size:', file.size);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                console.log('Starting upload...');
+                document.getElementById('uploadBtn').disabled = true;
+                document.getElementById('uploadBtn').textContent = 'Validating...';
+
+                console.log('Sending request to /upload_orders');
+                const response = await fetch('/upload_orders', {
+                    method: 'POST',
+                    body: formData,
+                    // Don't set Content-Type header, let browser set it for FormData
+                });
+
+                console.log('Response received:', response.status, response.statusText);
+                console.log('Response headers:', response.headers);
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (data.success) {
+                    console.log('Upload successful, showing results');
+                    // Show validation results
+                    document.getElementById('validationResults').innerHTML = `
+                        <div class="success">
+                            ✅ ${data.message}<br>
+                            📊 Found ${data.row_count} orders in the file
+                        </div>
+                    `;
+
+                    // Show preview
+                    if (data.preview && data.preview.length > 0) {
+                        console.log('Creating preview table');
+                        const previewHtml = createPreviewTable(data.preview);
+                        document.getElementById('csvPreview').innerHTML = previewHtml;
+                        document.getElementById('previewSection').style.display = 'block';
+                    }
+
+                    // Move to step 2
+                    console.log('Moving to step 2');
+                    document.getElementById('uploadStep1').style.display = 'none';
+                    document.getElementById('uploadStep2').style.display = 'block';
+                } else {
+                    console.log('Upload failed, showing error');
+                    document.getElementById('validationResults').innerHTML = `
+                        <div class="error">❌ ${data.error}</div>
+                    `;
+                    document.getElementById('uploadStep1').style.display = 'none';
+                    document.getElementById('uploadStep2').style.display = 'block';
+                    document.getElementById('previewSection').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error in uploadCSV:', error);
+                showStatus(`Error uploading file: ${error.message}`, 'error');
+            } finally {
+                console.log('Resetting button state');
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('uploadBtn').textContent = 'Validate & Preview';
+            }
+        }
+
+        function createPreviewTable(data) {
+            let html = '<table class="csv-preview-table"><thead><tr>';
+            
+            // Create headers
+            const headers = Object.keys(data[0]);
+            headers.forEach(header => {
+                html += `<th>${header}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            // Create rows
+            data.forEach(row => {
+                html += '<tr>';
+                headers.forEach(header => {
+                    let value = row[header];
+                    // Handle various null/undefined/NaN values
+                    if (value === null || value === undefined || value === 'NaN' || 
+                        (typeof value === 'number' && isNaN(value))) {
+                        value = '';
+                    }
+                    html += `<td>${value}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            return html;
+        }
+
+        async function confirmUpload() {
+            try {
+                document.getElementById('confirmBtn').disabled = true;
+                document.getElementById('confirmBtn').textContent = 'Uploading...';
+
+                const response = await fetch('/confirm_upload', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(data.message, 'success');
+                    closeUploadModal();
+                    // Refresh allocation chart if it exists
+                    if (typeof refreshAllocation === 'function') {
+                        refreshAllocation();
+                    }
+                } else {
+                    showStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error confirming upload: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('confirmBtn').disabled = false;
+                document.getElementById('confirmBtn').textContent = 'Replace Orders File';
+            }
         }
         
         // Handle form submission for plotting

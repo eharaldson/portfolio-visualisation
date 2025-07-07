@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import yfinance as yf
 import plotly.graph_objs as go
 import plotly.utils
@@ -12,12 +13,165 @@ from portfolio_analyser import PortfolioAnalyzer
 from portfolio_visualiser_helper import get_sector_plot, get_stock_portfolio_allocation
 import os
 import csv
+import tempfile
 
 template_dir = 'templates'
 app = Flask(__name__, template_folder=template_dir)
 app.secret_key = 'your-secret-key-change-this-in-production'  # Change this in production!
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access the dashboard.'
+
+# User class for Flask-Login
+class User(UserMixin):
+    def __init__(self, user_id, email, password_hash):
+        self.id = str(user_id)  # Ensure ID is always string
+        self.email = email
+        self.password_hash = password_hash
+    
+    def is_authenticated(self):
+        return True
+    
+    def is_active(self):
+        return True
+    
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return str(self.id)
+
+# User management functions
+def init_user_files():
+    """Initialize user management files if they don't exist"""
+    users_file = 'users.csv'
+    user_orders_file = 'user_orders_mapping.csv'
+    
+    if not os.path.exists(users_file):
+        with open(users_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['user_id', 'email', 'password_hash', 'created_at'])
+    
+    if not os.path.exists(user_orders_file):
+        with open(user_orders_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['user_id', 'orders_file'])
+
+def get_user_by_email(email):
+    """Get user by email from CSV"""
+    users_file = 'users.csv'
+    if not os.path.exists(users_file):
+        return None
+    
+    df = pd.read_csv(users_file)
+    user_row = df[df['email'] == email]
+    
+    if not user_row.empty:
+        row = user_row.iloc[0]
+        return User(row['user_id'], row['email'], row['password_hash'])
+    return None
+
+def get_user_by_id(user_id):
+    """Get user by ID from CSV"""
+    users_file = 'users.csv'
+    if not os.path.exists(users_file):
+        return None
+    
+    try:
+        df = pd.read_csv(users_file)
+        # Convert user_id to string for comparison since CSV stores as string
+        user_row = df[df['user_id'].astype(str) == str(user_id)]
+        
+        if not user_row.empty:
+            row = user_row.iloc[0]
+            return User(str(row['user_id']), row['email'], row['password_hash'])
+        return None
+    except Exception as e:
+        print(f"Error in get_user_by_id: {e}")
+        return None
+
+def create_user(email, password):
+    """Create a new user"""
+    users_file = 'users.csv'
+    user_orders_file = 'user_orders_mapping.csv'
+    
+    # Check if user already exists
+    if get_user_by_email(email):
+        return None
+    
+    # Generate user ID (timestamp-based)
+    user_id = str(int(datetime.now().timestamp()))
+    password_hash = generate_password_hash(password)
+    created_at = datetime.now().isoformat()
+    
+    # Add user to users.csv
+    with open(users_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([user_id, email, password_hash, created_at])
+    
+    # Create user-specific orders file and add mapping
+    orders_filename = f'Orders_{user_id}.csv'
+    with open(user_orders_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([user_id, orders_filename])
+    
+    # Create empty orders file for the user
+    with open(orders_filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['date', 'num_shares', 'company', 'ticker', 'price', 'foreign_commission', 'domestic_commission', 'order_type', 'split_ratio', 'merger_old_ticker'])
+    
+    return User(str(user_id), email, password_hash)
+
+def get_user_orders_file(user_id):
+    """Get the orders file for a specific user"""
+    user_orders_file = 'user_orders_mapping.csv'
+    if not os.path.exists(user_orders_file):
+        return None
+    
+    try:
+        df = pd.read_csv(user_orders_file)
+        # Convert user_id to string for comparison
+        mapping_row = df[df['user_id'].astype(str) == str(user_id)]
+        
+        if not mapping_row.empty:
+            return mapping_row.iloc[0]['orders_file']
+        return None
+    except Exception as e:
+        print(f"Error in get_user_orders_file: {e}")
+        return None
+
+
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import yfinance as yf
+import plotly.graph_objs as go
+import plotly.utils
+import json
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+from portfolio_analyser import PortfolioAnalyzer
+from portfolio_visualiser_helper import get_sector_plot, get_stock_portfolio_allocation
+import os
+import csv
+import tempfile
+
+template_dir = 'Templates'
+app = Flask(__name__, template_folder=template_dir)
+app.secret_key = 'your-secret-key-change-this-in-production'  # Change this in production!
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -151,8 +305,31 @@ def load_user(user_id):
     print(f"Loaded user: {user.email if user else 'None'}")  # Debug
     return user
 
+def cleanup_temp_files():
+    """Clean up temporary upload files older than 1 hour"""
+    try:
+        temp_dir = app.config['UPLOAD_FOLDER']
+        current_time = datetime.now()
+        
+        for filename in os.listdir(temp_dir):
+            if filename.startswith('temp_upload_'):
+                filepath = os.path.join(temp_dir, filename)
+                if os.path.isfile(filepath):
+                    # Check if file is older than 1 hour
+                    file_time = datetime.fromtimestamp(os.path.getctime(filepath))
+                    if (current_time - file_time).total_seconds() > 3600:  # 1 hour
+                        try:
+                            os.remove(filepath)
+                            print(f"Cleaned up old temp file: {filename}")
+                        except:
+                            pass
+    except Exception as e:
+        print(f"Error during temp file cleanup: {e}")
+
 # Initialize user files on startup
 init_user_files()
+# Clean up any old temp files
+cleanup_temp_files()
 
 # Load portfolio data on startup
 def load_portfolio_info():
@@ -242,7 +419,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# Dashboard routes (require login)
+# routes (require login)
 @app.route('/')
 @login_required
 def index():
@@ -399,6 +576,234 @@ def update_last_order():
         
     except Exception as e:
         return jsonify({'error': f'Error updating order: {str(e)}'}), 500
+
+def validate_csv_format(df):
+    """Validate that the CSV has the correct columns and format"""
+    required_columns = [
+        'date', 'num_shares', 'company', 'ticker', 'price', 
+        'foreign_commission', 'domestic_commission', 'order_type', 
+        'split_ratio', 'merger_old_ticker'
+    ]
+    
+    # Check if all required columns are present
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        return False, f"Missing required columns: {', '.join(missing_columns)}"
+    
+    # Check if there are extra columns
+    extra_columns = [col for col in df.columns if col not in required_columns]
+    if extra_columns:
+        return False, f"Unexpected columns found: {', '.join(extra_columns)}"
+    
+    # Check if DataFrame is empty
+    if df.empty:
+        return False, "CSV file is empty"
+    
+    # Validate data types and required fields
+    try:
+        # Check for required fields (non-empty)
+        for index, row in df.iterrows():
+            if pd.isna(row['date']) or str(row['date']).strip() == '':
+                return False, f"Row {index + 1}: Date is required"
+            if pd.isna(row['ticker']) or str(row['ticker']).strip() == '':
+                return False, f"Row {index + 1}: Ticker is required"
+            if pd.isna(row['company']) or str(row['company']).strip() == '':
+                return False, f"Row {index + 1}: Company is required"
+            if pd.isna(row['order_type']) or str(row['order_type']).strip() == '':
+                return False, f"Row {index + 1}: Order type is required"
+            
+            # Validate order_type values
+            if str(row['order_type']).lower() not in ['buy', 'sell', 'split', 'merger']:
+                return False, f"Row {index + 1}: Order type must be 'buy' or 'sell' or 'split' or 'merger'"
+            
+            # Validate numeric fields (num_shares and price are required)
+            try:
+                if pd.isna(row['num_shares']) or str(row['num_shares']).strip() == '':
+                    return False, f"Row {index + 1}: Number of shares is required"
+                if pd.isna(row['price']) or str(row['price']).strip() == '':
+                    return False, f"Row {index + 1}: Price is required"
+                
+                float(row['num_shares'])
+                float(row['price'])
+                
+                # Commission fields can be empty/NaN, but if present should be numeric
+                if not pd.isna(row['foreign_commission']) and str(row['foreign_commission']).strip() != '':
+                    float(row['foreign_commission'])
+                if not pd.isna(row['domestic_commission']) and str(row['domestic_commission']).strip() != '':
+                    float(row['domestic_commission'])
+            except (ValueError, TypeError):
+                return False, f"Row {index + 1}: Invalid numeric values in num_shares, price, or commission fields"
+            
+            # Validate date format (try to parse it)
+            try:
+                pd.to_datetime(row['date'])
+            except:
+                return False, f"Row {index + 1}: Invalid date format. Use YYYY-MM-DD or similar standard format"
+    
+    except Exception as e:
+        return False, f"Error validating data: {str(e)}"
+    
+    return True, "CSV format is valid"
+
+@app.route('/upload_orders', methods=['POST'])
+@login_required
+def upload_orders():
+    """Upload and validate CSV file of orders"""
+    print("upload_orders endpoint called")
+    try:
+        print("Checking for file in request...")
+        if 'file' not in request.files:
+            print("No file in request.files")
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        print(f"File object: {file}")
+        print(f"Filename: {file.filename}")
+        
+        if file.filename == '':
+            print("Empty filename")
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.lower().endswith('.csv'):
+            print("File is not CSV")
+            return jsonify({'error': 'File must be a CSV'}), 400
+        
+        # Read and validate the CSV
+        try:
+            print("Reading CSV file...")
+            df = pd.read_csv(file)
+            print(f"CSV read successfully. Shape: {df.shape}")
+            print(f"Columns: {list(df.columns)}")
+        except Exception as e:
+            print(f"Error reading CSV: {e}")
+            return jsonify({'error': f'Error reading CSV file: {str(e)}'}), 400
+        
+        # Validate CSV format
+        print("Validating CSV format...")
+        is_valid, message = validate_csv_format(df)
+        print(f"Validation result: {is_valid}, Message: {message}")
+        
+        if not is_valid:
+            print("Validation failed")
+            return jsonify({'error': message}), 400
+        
+        # Store the validated data temporarily in a file instead of session
+        print("Storing data in temporary file...")
+        temp_filename = f"temp_upload_{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+        
+        # Save the cleaned data to temp file
+        df_clean = df.copy()
+        df_clean['foreign_commission'] = df_clean['foreign_commission'].fillna(0)
+        df_clean['domestic_commission'] = df_clean['domestic_commission'].fillna(0)
+        df_clean['split_ratio'] = df_clean['split_ratio'].fillna('')
+        df_clean['merger_old_ticker'] = df_clean['merger_old_ticker'].fillna('')
+        df_clean['ticker'] = df_clean['ticker'].str.upper()
+        df_clean['order_type'] = df_clean['order_type'].str.lower()
+        
+        df_clean.to_csv(temp_filepath, index=False)
+        
+        # Store only the temp filename in session (much smaller)
+        session['pending_upload'] = {
+            'temp_file': temp_filename,
+            'original_filename': secure_filename(file.filename),
+            'row_count': len(df)
+        }
+        print("Temp filename stored in session successfully")
+        
+        # Create preview data with proper NaN handling
+        preview_df = df.head(3).fillna('')  # Replace NaN with empty strings
+        preview_data = preview_df.to_dict('records')
+        
+        response_data = {
+            'success': True, 
+            'message': 'CSV validated successfully',
+            'row_count': len(df),
+            'preview': preview_data
+        }
+        print(f"Returning response: {response_data}")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"Exception in upload_orders: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error processing upload: {str(e)}'}), 500
+
+@app.route('/confirm_upload', methods=['POST'])
+@login_required
+def confirm_upload():
+    """Confirm and apply the uploaded CSV data"""
+    try:
+        if 'pending_upload' not in session:
+            return jsonify({'error': 'No pending upload found'}), 400
+        
+        # Get the stored data
+        upload_data = session['pending_upload']
+        temp_filename = upload_data['temp_file']
+        temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+        
+        # Check if temp file exists
+        if not os.path.exists(temp_filepath):
+            return jsonify({'error': 'Temporary file not found. Please upload again.'}), 400
+        
+        # Read the cleaned data from temp file
+        df = pd.read_csv(temp_filepath)
+        
+        # Get user's orders file
+        orders_file = get_user_orders_file(current_user.id)
+        if not orders_file:
+            return jsonify({'error': 'User orders file not found'}), 404
+        
+        # Backup existing file if it exists and has data
+        backup_created = False
+        if os.path.exists(orders_file):
+            existing_df = pd.read_csv(orders_file)
+            if not existing_df.empty:
+                backup_file = f"{orders_file}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                existing_df.to_csv(backup_file, index=False)
+                backup_created = True
+        
+        # Save the new data
+        df.to_csv(orders_file, index=False)
+        
+        # Clean up: remove temp file and clear session data
+        try:
+            os.remove(temp_filepath)
+        except:
+            pass  # If temp file removal fails, it's not critical
+        
+        session.pop('pending_upload', None)
+        
+        message = f"Successfully uploaded {len(df)} orders"
+        if backup_created:
+            message += ". Previous orders backed up."
+        
+        return jsonify({'success': True, 'message': message})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error confirming upload: {str(e)}'}), 500
+
+@app.route('/cancel_upload', methods=['POST'])
+@login_required
+def cancel_upload():
+    """Cancel the pending upload"""
+    try:
+        if 'pending_upload' in session:
+            upload_data = session['pending_upload']
+            if 'temp_file' in upload_data:
+                temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], upload_data['temp_file'])
+                try:
+                    if os.path.exists(temp_filepath):
+                        os.remove(temp_filepath)
+                except:
+                    pass  # If cleanup fails, it's not critical
+        
+        session.pop('pending_upload', None)
+        return jsonify({'success': True, 'message': 'Upload cancelled'})
+    except Exception as e:
+        return jsonify({'error': f'Error cancelling upload: {str(e)}'}), 500
 
 @app.route('/delete_last_order', methods=['POST'])
 @login_required
