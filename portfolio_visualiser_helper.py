@@ -12,7 +12,7 @@ def get_current_num_shares(current_order_data: pd.DataFrame, ticker: str) -> flo
 
 # From an input dictionary of ticker price data, generate a plot of sector performance by checking 
 # order file to get the correct weightings for the sector.
-def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
+def get_sector_plot(ticker_data: dict[str, pd.DataFrame], order_file: str) -> list[float]:
     """
     Generate a list of weighted changes for each ticker in the sector based on order data.
     Args:
@@ -22,7 +22,7 @@ def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
         list[float]: List of weighted changes for each ticker in the sector.
     """
     # Read the order data from CSV
-    df_orders = pd.read_csv('Orders.csv')
+    df_orders = pd.read_csv(order_file)
     df_orders['date'] = pd.to_datetime(df_orders['date'], format='%d/%m/%Y')
 
     selected_tickers = list(ticker_data.keys())
@@ -68,7 +68,7 @@ def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
 
     return sector_normalised
 
-def get_value_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
+def get_value_plot(ticker_data: dict[str, pd.DataFrame], order_file: str) -> list[float]:
     """
     Generate a list of weighted changes for each ticker in the sector based on order data.
     Args:
@@ -78,7 +78,7 @@ def get_value_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
         list[float]: List of weighted changes for each ticker in the sector.
     """
     # Read the order data from CSV
-    df_orders = pd.read_csv('Orders.csv')
+    df_orders = pd.read_csv(order_file)
     df_orders['date'] = pd.to_datetime(df_orders['date'], format='%d/%m/%Y')
 
     selected_tickers = list(ticker_data.keys())
@@ -126,13 +126,13 @@ def get_stock_portfolio_value(current_order_data: pd.DataFrame, ticker: str) -> 
 
     return total_value
 
-def get_stock_portfolio_allocation() -> dict[str, float]:
+def get_stock_portfolio_allocation(order_file: str) -> dict[str, float]:
     """
     Get the stock portfolio allocation from the orders CSV file.
     Returns:
         dict[str, float]: Dictionary where keys are tickers and values are their allocation percentages.
     """
-    df_orders = pd.read_csv('Orders.csv')
+    df_orders = pd.read_csv(order_file)
 
     tickers = df_orders['ticker'].unique()
     value_per_ticker = {ticker: get_stock_portfolio_value(df_orders, ticker) for ticker in tickers}
@@ -141,7 +141,94 @@ def get_stock_portfolio_allocation() -> dict[str, float]:
     
     return allocations
 
+def get_percentage_change_all_time(current_order_data: pd.DataFrame, ticker: str) -> float:
+    """
+    Get the percentage change of a stock based on the average price bought in for.
+    Returns:
+        float: Percentage change of the stock.
+    """
+    # Get all orders for the ticker
+    orders = current_order_data[current_order_data['ticker'] == ticker]
+
+    if orders.empty:
+        return 0.0
+
+    # Calculate the average price bought in
+    total_cost = 0
+    total_shares = 0
+
+    for i in range(len(orders)):
+        order = orders.iloc[i]
+        if order["order_type"] != "sell":
+            total_cost += order["num_shares"] * order["price"]
+            total_shares += order["num_shares"]
+        elif order["order_type"] == "sell":
+            if total_shares == 0:
+                raise ValueError("You can't sell shares you don't own!")
+            avg_price = total_cost / total_shares
+            total_cost -= order["num_shares"] * avg_price
+            total_shares -= order["num_shares"]
+
+    # Step 2: Calculate average cost of remaining shares
+    if total_shares > 0:
+        average_cost = total_cost / total_shares
+    else:
+        return 0.0
+
+    # Get the current price using yfinance
+    current_price = yf.Ticker(ticker).fast_info["lastPrice"]
+
+    # Calculate percentage change
+    unrealised_percentage_change = ((current_price - average_cost) / average_cost) * 100
+
+    return unrealised_percentage_change
+
+def get_top_and_bottom_3stocks_unrealized_changes_alltime(order_file: str):
+    """
+    Get the top 3 performing stocks of all time based on the Orders.csv file.
+    Returns:
+        dict[str, float]: Dictionary where keys are tickers and values are their percentage change based on the average price bought in for.
+    """
+    df_orders = pd.read_csv(order_file)
+
+    tickers = df_orders['ticker'].unique()
+    change_per_ticker = {ticker: get_percentage_change_all_time(df_orders, ticker) for ticker in tickers}
+
+    # Sort the tickers by value in descending order and get the top 3
+    sorted_tickers = sorted(change_per_ticker.items(), key=lambda x: x[1], reverse=True)
+    top3_tickers = sorted_tickers[:3]
+    bottom3_tickers = sorted_tickers[-3:]
+
+    return {ticker: value for ticker, value in top3_tickers}, {ticker: value for ticker, value in bottom3_tickers}
+
+def get_top_and_bottom_3subsectors_unrealized_changes_alltime_plot(order_file: str):
+    """
+    Get the top 3 performing subsectors of all time based on the Orders.csv file.
+    Returns:
+        dict[str, float]: Dictionary where keys are subsector names and values are their percentage change based on the average price bought in for.
+    """
+    df_orders = pd.read_csv(order_file)
+
+    # Get unique subsectors
+    subsectors = df_orders['Sector'].unique()
+    
+    change_per_subsector = {}
+    
+    for subsector in subsectors:
+        tickers_in_subsector = df_orders[df_orders['subsector'] == subsector]['ticker'].unique()
+        total_change = sum(get_percentage_change_all_time(df_orders, ticker) for ticker in tickers_in_subsector)
+        change_per_subsector[subsector] = total_change / len(tickers_in_subsector) if tickers_in_subsector.size > 0 else 0
+
+    # Sort the subsectors by value in descending order and get the top 3
+    sorted_subsectors = sorted(change_per_subsector.items(), key=lambda x: x[1], reverse=True)
+    top3_subsectors = sorted_subsectors[:3]
+    bottom3_subsectors = sorted_subsectors[-3:]
+
+    return {subsector: value for subsector, value in top3_subsectors}, {subsector: value for subsector, value in bottom3_subsectors}
+
 if __name__ == "__main__":
 
-    alloc = get_stock_portfolio_allocation()
+    top3 = get_top_and_bottom_3stocks_unrealized_changes_alltime()
+
+    print(top3)
     

@@ -1,5 +1,6 @@
-
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import yfinance as yf
 import plotly.graph_objs as go
 import plotly.utils
@@ -10,9 +11,148 @@ from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
 from portfolio_visualiser_helper import get_sector_plot, get_stock_portfolio_allocation
 import os
+import csv
 
-template_dir = 'Templates'
+template_dir = 'templates'
 app = Flask(__name__, template_folder=template_dir)
+app.secret_key = 'your-secret-key-change-this-in-production'  # Change this in production!
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access the dashboard.'
+
+# User class for Flask-Login
+class User(UserMixin):
+    def __init__(self, user_id, email, password_hash):
+        self.id = str(user_id)  # Ensure ID is always string
+        self.email = email
+        self.password_hash = password_hash
+    
+    def is_authenticated(self):
+        return True
+    
+    def is_active(self):
+        return True
+    
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return str(self.id)
+
+# User management functions
+def init_user_files():
+    """Initialize user management files if they don't exist"""
+    users_file = 'users.csv'
+    user_orders_file = 'user_orders_mapping.csv'
+    
+    if not os.path.exists(users_file):
+        with open(users_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['user_id', 'email', 'password_hash', 'created_at'])
+    
+    if not os.path.exists(user_orders_file):
+        with open(user_orders_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['user_id', 'orders_file'])
+
+def get_user_by_email(email):
+    """Get user by email from CSV"""
+    users_file = 'users.csv'
+    if not os.path.exists(users_file):
+        return None
+    
+    df = pd.read_csv(users_file)
+    user_row = df[df['email'] == email]
+    
+    if not user_row.empty:
+        row = user_row.iloc[0]
+        return User(row['user_id'], row['email'], row['password_hash'])
+    return None
+
+def get_user_by_id(user_id):
+    """Get user by ID from CSV"""
+    users_file = 'users.csv'
+    if not os.path.exists(users_file):
+        return None
+    
+    try:
+        df = pd.read_csv(users_file)
+        # Convert user_id to string for comparison since CSV stores as string
+        user_row = df[df['user_id'].astype(str) == str(user_id)]
+        
+        if not user_row.empty:
+            row = user_row.iloc[0]
+            return User(str(row['user_id']), row['email'], row['password_hash'])
+        return None
+    except Exception as e:
+        print(f"Error in get_user_by_id: {e}")
+        return None
+
+def create_user(email, password):
+    """Create a new user"""
+    users_file = 'users.csv'
+    user_orders_file = 'user_orders_mapping.csv'
+    
+    # Check if user already exists
+    if get_user_by_email(email):
+        return None
+    
+    # Generate user ID (timestamp-based)
+    user_id = str(int(datetime.now().timestamp()))
+    password_hash = generate_password_hash(password)
+    created_at = datetime.now().isoformat()
+    
+    # Add user to users.csv
+    with open(users_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([user_id, email, password_hash, created_at])
+    
+    # Create user-specific orders file and add mapping
+    orders_filename = f'Orders_{user_id}.csv'
+    with open(user_orders_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([user_id, orders_filename])
+    
+    # Create empty orders file for the user
+    with open(orders_filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['date', 'num_shares', 'company', 'ticker', 'price', 'foreign_commission', 'domestic_commission', 'order_type', 'split_ratio', 'merger_old_ticker'])
+    
+    return User(str(user_id), email, password_hash)
+
+def get_user_orders_file(user_id):
+    """Get the orders file for a specific user"""
+    user_orders_file = 'user_orders_mapping.csv'
+    if not os.path.exists(user_orders_file):
+        return None
+    
+    try:
+        df = pd.read_csv(user_orders_file)
+        # Convert user_id to string for comparison
+        mapping_row = df[df['user_id'].astype(str) == str(user_id)]
+        
+        if not mapping_row.empty:
+            return mapping_row.iloc[0]['orders_file']
+        return None
+    except Exception as e:
+        print(f"Error in get_user_orders_file: {e}")
+        return None
+
+@login_manager.user_loader
+def load_user(user_id):
+    print(f"Loading user with ID: {user_id} (type: {type(user_id)})")  # Debug
+    # Flask-Login passes user_id as string, make sure we handle it correctly
+    user = get_user_by_id(str(user_id))
+    print(f"Loaded user: {user.email if user else 'None'}")  # Debug
+    return user
+
+# Initialize user files on startup
+init_user_files()
 
 # Load portfolio data on startup
 def load_portfolio_info():
@@ -44,33 +184,113 @@ def load_portfolio_info():
 
 portfolio_info = load_portfolio_info()
 
+# Authentication routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        user = get_user_by_email(email)
+        
+        if user and check_password_hash(user.password_hash, password):
+            print(f"Password verified for user: {email}")  # Debug
+            login_user(user, remember=True)  # Add remember=True
+            print(f"login_user() called")  # Debug
+            print(f"current_user.is_authenticated after login: {current_user.is_authenticated}")  # Debug
+            print(f"current_user.id after login: {current_user.id}")  # Debug
+            redirect_url = url_for('index')
+            print(f"Generated redirect URL: {redirect_url}")  # Debug
+            response = redirect(redirect_url)
+            print(f"Redirect response: {response}")  # Debug
+            print(f"Response headers: {response.headers}")  # Debug
+            return response
+        else:
+            flash('Invalid email or password')
+    
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if password != confirm_password:
+            flash('Passwords do not match')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long')
+            return render_template('register.html')
+        
+        user = create_user(email, password)
+        
+        if user:
+            login_user(user)
+            flash('Registration successful!')
+            return redirect(url_for('index'))
+        else:
+            flash('Email already exists')
+    
+    return render_template('register.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# Dashboard routes (require login)
 @app.route('/')
+@login_required
 def index():
-    return render_template('index.html')
+    print(f"Index route called for user: {current_user.email if current_user.is_authenticated else 'Not authenticated'}")  # Debug
+    print(f"Current user authenticated: {current_user.is_authenticated}")  # Debug
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        print(f"Error rendering template: {e}")  # Debug
+        return f"Error: {e}", 500
 
 @app.route('/get_portfolio_data')
+@login_required
 def get_portfolio_data():
     """API endpoint to get portfolio tickers and sectors"""
     return jsonify(portfolio_info)
 
-@app.route('/download_orders')
-def download_orders():
-    """Download the Orders.csv file"""
+@app.route('/get_portfolio_allocation')
+@login_required
+def get_portfolio_allocation():
+    """Get portfolio allocation data for pie chart"""
     try:
-        orders_file = 'Orders.csv'
-        if os.path.exists(orders_file):
-            return send_file(orders_file, as_attachment=True, download_name='Orders.csv')
+        orders_file = get_user_orders_file(current_user.id)
+        allocation_data = get_stock_portfolio_allocation(orders_file)
+        return jsonify({'allocation': allocation_data})
+    except Exception as e:
+        return jsonify({'error': f'Error getting portfolio allocation: {str(e)}'}), 500
+
+@app.route('/download_orders')
+@login_required
+def download_orders():
+    """Download the user's Orders.csv file"""
+    try:
+        orders_file = get_user_orders_file(current_user.id)
+        if orders_file and os.path.exists(orders_file):
+            return send_file(orders_file, as_attachment=True, download_name='My_Orders.csv')
         else:
-            return jsonify({'error': 'Orders.csv file not found'}), 404
+            return jsonify({'error': 'Orders file not found'}), 404
     except Exception as e:
         return jsonify({'error': f'Error downloading file: {str(e)}'}), 500
 
 @app.route('/get_orders')
+@login_required
 def get_orders():
-    """Get all orders for display"""
+    """Get all orders for the current user"""
     try:
-        orders_file = 'Orders.csv'
-        if os.path.exists(orders_file):
+        orders_file = get_user_orders_file(current_user.id)
+        if orders_file and os.path.exists(orders_file):
             df = pd.read_csv(orders_file)
             # Convert to list of dictionaries for JSON response
             orders = df.to_dict('records')
@@ -81,8 +301,9 @@ def get_orders():
         return jsonify({'error': f'Error reading orders: {str(e)}'}), 500
 
 @app.route('/add_order', methods=['POST'])
+@login_required
 def add_order():
-    """Add a new order to the Orders.csv file"""
+    """Add a new order to the user's Orders.csv file"""
     try:
         # Get form data
         order_data = {
@@ -98,7 +319,10 @@ def add_order():
             'merger_old_ticker': request.form.get('merger_old_ticker', '')
         }
         
-        orders_file = 'Orders.csv'
+        orders_file = get_user_orders_file(current_user.id)
+        
+        if not orders_file:
+            return jsonify({'error': 'Orders file not found for user'}), 404
         
         # Check if file exists
         if os.path.exists(orders_file):
@@ -120,11 +344,12 @@ def add_order():
         return jsonify({'error': f'Error adding order: {str(e)}'}), 500
 
 @app.route('/get_last_order')
+@login_required
 def get_last_order():
     """Get the last order for editing"""
     try:
-        orders_file = 'Orders.csv'
-        if os.path.exists(orders_file):
+        orders_file = get_user_orders_file(current_user.id)
+        if orders_file and os.path.exists(orders_file):
             df = pd.read_csv(orders_file)
             if not df.empty:
                 last_order = df.iloc[-1].to_dict()
@@ -132,17 +357,18 @@ def get_last_order():
             else:
                 return jsonify({'error': 'No orders found'}), 404
         else:
-            return jsonify({'error': 'Orders.csv file not found'}), 404
+            return jsonify({'error': 'Orders file not found'}), 404
     except Exception as e:
         return jsonify({'error': f'Error getting last order: {str(e)}'}), 500
 
 @app.route('/update_last_order', methods=['POST'])
+@login_required
 def update_last_order():
     """Update the last order"""
     try:
-        orders_file = 'Orders.csv'
-        if not os.path.exists(orders_file):
-            return jsonify({'error': 'Orders.csv file not found'}), 404
+        orders_file = get_user_orders_file(current_user.id)
+        if not orders_file or not os.path.exists(orders_file):
+            return jsonify({'error': 'Orders file not found'}), 404
         
         df = pd.read_csv(orders_file)
         if df.empty:
@@ -174,22 +400,14 @@ def update_last_order():
     except Exception as e:
         return jsonify({'error': f'Error updating order: {str(e)}'}), 500
 
-@app.route('/get_portfolio_allocation')
-def get_portfolio_allocation():
-    """Get portfolio allocation data for pie chart"""
-    try:
-        allocation_data = get_stock_portfolio_allocation()
-        return jsonify({'allocation': allocation_data})
-    except Exception as e:
-        return jsonify({'error': f'Error getting portfolio allocation: {str(e)}'}), 500
-
 @app.route('/delete_last_order', methods=['POST'])
+@login_required
 def delete_last_order():
     """Delete the last order"""
     try:
-        orders_file = 'Orders.csv'
-        if not os.path.exists(orders_file):
-            return jsonify({'error': 'Orders.csv file not found'}), 404
+        orders_file = get_user_orders_file(current_user.id)
+        if not orders_file or not os.path.exists(orders_file):
+            return jsonify({'error': 'Orders file not found'}), 404
         
         df = pd.read_csv(orders_file)
         if df.empty:
@@ -207,6 +425,7 @@ def delete_last_order():
         return jsonify({'error': f'Error deleting order: {str(e)}'}), 500
 
 @app.route('/plot', methods=['POST'])
+@login_required
 def plot():
     # Get form data
     ticker = request.form.get('ticker', '').strip().upper()
@@ -269,7 +488,8 @@ def plot():
                 
                 if portfolio_data:
                     # Calculate sector plot by weighting of tickers
-                    portfolio_plot = get_sector_plot(portfolio_data)
+                    orders_file = get_user_orders_file(current_user.id)
+                    portfolio_plot = get_sector_plot(portfolio_data, orders_file)
                 
             except Exception as e:
                 print(f"Error calculating portfolio performance: {e}")
@@ -296,7 +516,8 @@ def plot():
                 
                 if sector_data:
                     # Calculate sector plot by weighting of tickers
-                    sector_plot = get_sector_plot(sector_data)
+                    orders_file = get_user_orders_file(current_user.id)
+                    sector_plot = get_sector_plot(sector_data, orders_file)
                     all_data[('sector', sector_name)] = sector_plot
             else:
                 # Handle individual ticker

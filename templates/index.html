@@ -303,6 +303,39 @@
         .order-section {
             margin-bottom: 25px;
         }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #b0b0b0;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            background-color: #C73E1D;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #a52e16;
+            transform: translateY(-1px);
+        }
         
         @media (max-width: 1024px) {
             .main-container {
@@ -324,7 +357,13 @@
 <body>
     <div class="main-container">
         <div class="left-section">
-            <h1>📈 Big Beautiful Dashboard </h1>
+            <div class="header-section">
+                <h1>📈 Big Beautiful Dashboard</h1>
+                <div class="user-info">
+                    <span>Welcome, {{ current_user.email }}</span>
+                    <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+                </div>
+            </div>
             
             <div class="form-container">
                 <form id="stockForm">
