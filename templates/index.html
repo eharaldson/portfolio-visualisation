@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -283,6 +282,20 @@
             color: #f5f5dc;
         }
 
+        .allocation-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #3a3e40;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        #allocationChart {
+            background-color: #2a2d2f;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
         .order-management {
             margin-bottom: 20px;
         }
@@ -365,6 +378,17 @@
         </div>
         
         <div class="right-section">
+            <h2>📊 Portfolio Allocation</h2>
+            
+            <div class="allocation-section">
+                <div id="allocationChart" style="height: 400px; margin-bottom: 30px;">
+                    <div class="loading">Loading portfolio allocation...</div>
+                </div>
+                <button class="secondary" onclick="refreshAllocation()" style="width: 100%; margin-bottom: 30px;">
+                    🔄 Refresh Allocation
+                </button>
+            </div>
+            
             <h2>📊 Order Management</h2>
             
             <div class="order-management">
@@ -486,6 +510,9 @@
             
             // Load portfolio data
             await loadPortfolioData();
+            
+            // Load portfolio allocation chart
+            await loadPortfolioAllocation();
         }
         
         // Load portfolio tickers and sectors
@@ -522,6 +549,110 @@
             } catch (error) {
                 console.error('Error loading portfolio data:', error);
             }
+        }
+        
+        // Load portfolio allocation data and create pie chart
+        async function loadPortfolioAllocation() {
+            try {
+                const response = await fetch('/get_portfolio_allocation');
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('allocationChart').innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                    return;
+                }
+                
+                const allocation = data.allocation;
+                
+                // Check if allocation data is empty
+                if (!allocation || Object.keys(allocation).length === 0) {
+                    document.getElementById('allocationChart').innerHTML = '<div class="loading">No portfolio data available</div>';
+                    return;
+                }
+                
+                // Prepare data for pie chart
+                const labels = Object.keys(allocation);
+                const values = Object.values(allocation).map(item => item[0]); // Get percentage values
+                const usdValues = Object.values(allocation).map(item => item[1]); // Get USD values
+                const colors = [
+                    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                    '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+                    '#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#4CAF50'
+                ];
+                
+                // Create pie chart
+                const pieData = [{
+                    values: values,
+                    labels: labels,
+                    type: 'pie',
+                    marker: {
+                        colors: colors.slice(0, labels.length),
+                        line: {
+                            color: '#2a2d2f',
+                            width: 2
+                        }
+                    },
+                    textinfo: 'percent',
+                    textposition: 'inside',
+                    textfont: {
+                        color: '#ffffff',
+                        size: 11,
+                        family: 'Arial, sans-serif'
+                    },
+                    customdata: usdValues, // Pass USD values as custom data
+                    hovertemplate: '<b>%{label}</b><br>' +
+                                  'Allocation: %{percent}<br>' +
+                                  'Value: $%{customdata:,.0f}<br>' +
+                                  '<extra></extra>',
+                    hoverlabel: {
+                        bgcolor: '#2a2d2f',
+                        bordercolor: '#4CAF50',
+                        font: {
+                            color: '#f5f5dc',
+                            size: 13
+                        }
+                    }
+                }];
+                
+                const pieLayout = {
+                    title: {
+                        text: 'Current Portfolio Allocation',
+                        font: {
+                            color: '#f5f5dc',
+                            size: 16
+                        }
+                    },
+                    paper_bgcolor: '#2a2d2f',
+                    plot_bgcolor: '#2a2d2f',
+                    font: {
+                        color: '#f5f5dc'
+                    },
+                    margin: {
+                        l: 10,
+                        r: 10,
+                        t: 50,
+                        b: 10
+                    },
+                    showlegend: false
+                };
+                
+                const config = {
+                    responsive: true,
+                    displayModeBar: false
+                };
+                
+                Plotly.newPlot('allocationChart', pieData, pieLayout, config);
+                
+            } catch (error) {
+                console.error('Error loading portfolio allocation:', error);
+                document.getElementById('allocationChart').innerHTML = `<div class="error">Error loading allocation: ${error.message}</div>`;
+            }
+        }
+
+        // Refresh portfolio allocation
+        async function refreshAllocation() {
+            document.getElementById('allocationChart').innerHTML = '<div class="loading">Refreshing portfolio allocation...</div>';
+            await loadPortfolioAllocation();
         }
         
         // Toggle dropdown visibility

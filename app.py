@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, jsonify, send_file
 import yfinance as yf
 import plotly.graph_objs as go
@@ -7,7 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
-from portfolio_visualiser_helper import get_sector_plot
+from portfolio_visualiser_helper import get_sector_plot, get_stock_portfolio_allocation
 import os
 
 template_dir = 'Templates'
@@ -127,8 +128,7 @@ def get_last_order():
             df = pd.read_csv(orders_file)
             if not df.empty:
                 last_order = df.iloc[-1].to_dict()
-                order_json = jsonify({'order': last_order})
-                return order_json
+                return jsonify({'order': last_order})
             else:
                 return jsonify({'error': 'No orders found'}), 404
         else:
@@ -174,6 +174,15 @@ def update_last_order():
     except Exception as e:
         return jsonify({'error': f'Error updating order: {str(e)}'}), 500
 
+@app.route('/get_portfolio_allocation')
+def get_portfolio_allocation():
+    """Get portfolio allocation data for pie chart"""
+    try:
+        allocation_data = get_stock_portfolio_allocation()
+        return jsonify({'allocation': allocation_data})
+    except Exception as e:
+        return jsonify({'error': f'Error getting portfolio allocation: {str(e)}'}), 500
+
 @app.route('/delete_last_order', methods=['POST'])
 def delete_last_order():
     """Delete the last order"""
@@ -196,7 +205,7 @@ def delete_last_order():
         
     except Exception as e:
         return jsonify({'error': f'Error deleting order: {str(e)}'}), 500
-    
+
 @app.route('/plot', methods=['POST'])
 def plot():
     # Get form data

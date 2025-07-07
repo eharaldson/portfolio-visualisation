@@ -113,41 +113,35 @@ def get_value_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
 
         selected_ticker_values.append(total_stock_value)
 
-    for ticker in selected_tickers:
-        num_shares = current_order_data[current_order_data['ticker'] == ticker]['num_shares'].sum()
-        stock_price = ticker_data[ticker].loc[timestamp]['Close']
-        stock_value = num_shares * stock_price
-        print(f"{ticker}: Number of shares: {num_shares}, Price: {stock_price}, Value: {stock_value}")
-
     return selected_ticker_values
+
+def get_stock_portfolio_value(current_order_data: pd.DataFrame, ticker: str) -> float:
+    """
+    Get the total value of the shares owned for a specific ticker using yfinance LastPrice.
+    Returns:
+        float: Total value ($USD) of the stocks owned for ticker.
+    """
+    num_shares = get_current_num_shares(current_order_data, ticker)
+    total_value = num_shares * yf.Ticker(ticker).fast_info["lastPrice"]
+
+    return total_value
+
+def get_stock_portfolio_allocation() -> dict[str, float]:
+    """
+    Get the stock portfolio allocation from the orders CSV file.
+    Returns:
+        dict[str, float]: Dictionary where keys are tickers and values are their allocation percentages.
+    """
+    df_orders = pd.read_csv('Orders.csv')
+
+    tickers = df_orders['ticker'].unique()
+    value_per_ticker = {ticker: get_stock_portfolio_value(df_orders, ticker) for ticker in tickers}
+
+    allocations = {ticker: (value / sum(value_per_ticker.values()) * 100, value) if sum(value_per_ticker.values()) > 0 else 0 for ticker, value in value_per_ticker.items()}
+    
+    return allocations
 
 if __name__ == "__main__":
 
-    df_cases = pd.read_csv('CaseStocks.csv')
-    selected_tickers = df_cases['Ticker'].tolist()
-    # selected_tickers = ['CNQ']
-
-    print(f"Sector tickers: {selected_tickers}")
-
-    start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')
-    print(f"Start date: {start_date}")
-    end_date = datetime.now().strftime('%Y-%m-%d')
-
-    # Example usage
-    ticker_data = {}
-    for t in selected_tickers:
-        print(f"Fetching data for {t}...")
-        # try:
-        stock = yf.Ticker(t)
-        data = stock.history(start=start_date, end=end_date)
-        data['Close_change'] = data['Close'].pct_change().fillna(0)
-
-        if not data.empty:
-            ticker_data[t] = data[['Close', 'Close_change']]
-
-    if ticker_data:
-        # Calculate sector plot by weighting of tickers
-        sector_plot = get_sector_plot(ticker_data)
+    alloc = get_stock_portfolio_allocation()
     
-    plt.plot(sector_plot)
-    plt.show()
