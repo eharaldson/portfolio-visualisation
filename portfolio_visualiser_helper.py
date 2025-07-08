@@ -64,9 +64,48 @@ def get_sector_portfolio_plot(ticker_data: dict[str, pd.DataFrame], order_file: 
         sector_normalised.append(sector_normalised[-1] * (1 + weighted_change))
 
     # Get the data in a series with date in the index for plotting
-    sector_normalised = pd.Series(sector_normalised[1:], index=ticker_data[selected_tickers[0]].index)
+    sector_normalised = pd.Series(sector_normalised[1:], index=max_length_index)
 
     return sector_normalised
+
+# From an input dictionary of ticker price data, generate a plot of sector performance by checking 
+# order file to get the correct weightings for the sector.
+def get_individual_ticker_portfolio_plot(ticker: str, ticker_data: pd.DataFrame, order_file: str) -> list[float]:
+    """
+    Generate a list of weighted changes for each ticker in the sector based on order data.
+    Args:
+        ticker_data pd.DataFrame]: Dictionary where keys are sector names and values are DataFrames
+            containing ticker price data with 'close_change' column.
+    Returns:
+        list[float]: List of weighted changes for each ticker in the sector.
+    """
+    # Read the order data from CSV
+    df_orders = pd.read_csv(order_file)
+    df_orders['date'] = pd.to_datetime(df_orders['date'], format='%d/%m/%Y')
+
+    performance_normalised = [100]
+
+    # Loop through and add weighting for each ticker in the sector
+    for timestamp in ticker_data.index:
+
+        # Get order data before the current date
+        t = timestamp.date()
+        current_datetime = datetime(t.year, t.month, t.day)
+        current_order_data = df_orders[df_orders['date'] <= current_datetime]
+
+        if timestamp in ticker_data.index and ticker in current_order_data['ticker'].to_list():
+            # Get the close change for the ticker at the current timestamp
+            close_change = ticker_data.loc[timestamp]['Close_change']
+        else:
+            close_change = 0
+
+        performance_normalised.append(performance_normalised[-1] * (1 + close_change))
+
+    # Get the data in a series with date in the index for plotting
+    performance_normalised = pd.Series(performance_normalised[1:], index=ticker_data.index)
+
+    return performance_normalised
+
 
 def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
     """
@@ -109,7 +148,7 @@ def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
         sector_normalised.append(sector_normalised[-1] * (1 + weighted_change))
 
     # Get the data in a series with date in the index for plotting
-    sector_normalised = pd.Series(sector_normalised[1:], index=ticker_data[selected_tickers[0]].index)
+    sector_normalised = pd.Series(sector_normalised[1:], index=max_length_index)
 
     return sector_normalised
 

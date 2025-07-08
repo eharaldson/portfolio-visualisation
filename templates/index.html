@@ -501,6 +501,14 @@
                             <input type="text" id="sectors" placeholder="Select sectors..." readonly onclick="toggleDropdown('sectors')">
                             <div id="sectors-dropdown" class="multi-select-dropdown"></div>
                         </div>
+                        
+                        <div class="form-group" style="min-width: 120px;">
+                            <label>&nbsp;</label>
+                            <div style="display: flex; align-items: center; padding: 12px; height: 48px; box-sizing: border-box;">
+                                <input type="checkbox" id="plotPerformance" style="margin-right: 8px; transform: scale(1.2);">
+                                <label for="plotPerformance" style="margin-bottom: 0; font-size: 14px; cursor: pointer;">Plot your performance</label>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="button-group">
@@ -915,6 +923,7 @@
             selectedSectors = [];
             document.getElementById('portfolio_tickers').value = '';
             document.getElementById('sectors').value = '';
+            document.getElementById('plotPerformance').checked = false;
             document.querySelectorAll('.multi-select-option').forEach(option => {
                 option.classList.remove('selected');
                 const checkbox = option.querySelector('input[type="checkbox"]');
@@ -1248,11 +1257,19 @@
             // Add selected tickers
             if (selectedTickers.length > 0) {
                 formData.append('selected_tickers', selectedTickers.join(','));
+
+                // Add the plot performance checkbox state
+                const plotPerformance = document.getElementById('plotPerformance').checked;
+                formData.append('plot_performance', plotPerformance);
             }
             
             // Add selected sectors
             if (selectedSectors.length > 0) {
                 formData.append('selected_sectors', selectedSectors.join(','));
+                
+                // Add the plot performance checkbox state
+                const plotPerformance = document.getElementById('plotPerformance').checked;
+                formData.append('plot_performance', plotPerformance);
             }
             
             // Check if we should include portfolio (from hidden input)

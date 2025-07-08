@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
-from portfolio_visualiser_helper import get_sector_plot, get_sector_portfolio_plot, get_stock_portfolio_allocation
+from portfolio_visualiser_helper import get_sector_plot, get_sector_portfolio_plot, get_individual_ticker_portfolio_plot, get_stock_portfolio_allocation
 import os
 import csv
 import tempfile
@@ -839,6 +839,7 @@ def plot():
     selected_tickers = request.form.get('selected_tickers', '').strip()
     selected_sectors = request.form.get('selected_sectors', '').strip()
     plot_portfolio = request.form.get('plot_portfolio', 'false') == 'true'
+    plot_performance = request.form.get('plot_performance', 'false') == 'true'
     
     # Set default dates
     if not end_date:
@@ -861,8 +862,8 @@ def plot():
             for t in selected_tickers.split(','):
                 t = t.strip()
                 if t and t not in tickers_to_plot:
-                    tickers_to_plot.append(t)
-                    trace_names.append(t)
+                    tickers_to_plot.append(('portfolio_stock', t, plot_performance))
+                    trace_names.append(f"{t} (Portfolio Stock)")
         
         # Add tickers from selected sectors
         if selected_sectors:
@@ -873,7 +874,7 @@ def plot():
                     # Create a combined trace for the sector
                     if sector_tickers:
                         # We'll calculate sector average later
-                        tickers_to_plot.append(('sector', sector, sector_tickers))
+                        tickers_to_plot.append(('sector', sector, sector_tickers, plot_performance))
                         trace_names.append(f"{sector} (Sector)")
         
         # Add portfolio if requested
@@ -892,9 +893,12 @@ def plot():
                         print(f"Error fetching {t}: {e}")
                 
                 if portfolio_data:
-                    # Calculate sector plot by weighting of tickers
+                    # Calculate portfolio plot - always use portfolio-specific function
                     orders_file = get_user_orders_file(current_user.id)
-                    portfolio_plot = get_sector_plot(portfolio_data, orders_file)
+                    if orders_file:
+                        portfolio_plot = get_sector_portfolio_plot(portfolio_data, orders_file)
+                    else:
+                        portfolio_plot = get_sector_plot(portfolio_data)
                 
             except Exception as e:
                 print(f"Error calculating portfolio performance: {e}")
@@ -906,7 +910,7 @@ def plot():
             if isinstance(item, tuple) and item[0] == 'sector':
 
                 # Handle sector - fetch all tickers in the sector
-                _, sector_name, sector_tickers = item
+                _, sector_name, sector_tickers, use_performance = item
                 sector_data = {}
                 for t in sector_tickers:
                     try:
@@ -920,10 +924,36 @@ def plot():
                         print(f"Error fetching {t}: {e}")
                 
                 if sector_data:
-                    # Calculate sector plot by weighting of tickers
+                    # Calculate sector plot using the appropriate function
                     orders_file = get_user_orders_file(current_user.id)
-                    sector_plot = get_sector_plot(sector_data, orders_file)
+                    if use_performance and orders_file:
+                        # Use performance-based plotting (user's actual holdings)
+                        sector_plot = get_sector_portfolio_plot(sector_data, orders_file)
+                    else:
+                        # Use equal-weight plotting (market performance)
+                        sector_plot = get_sector_plot(sector_data)
                     all_data[('sector', sector_name)] = sector_plot
+            elif isinstance(item, tuple) and item[0] == 'portfolio_stock':
+                # Handle individual portfolio stock
+                _, stock_ticker, use_performance = item
+                try:
+                    stock = yf.Ticker(stock_ticker)
+                    data = stock.history(start=start_date, end=end_date)
+                    data['Close_change'] = data['Close'].pct_change().fillna(0)
+
+                    if not data.empty:
+                        # Calculate sector plot using the appropriate function
+                        orders_file = get_user_orders_file(current_user.id)
+                        if use_performance and orders_file:
+                            # Use performance-based plotting (user's actual holdings)
+                            ticker_plot = get_individual_ticker_portfolio_plot(stock_ticker, data[['Close', 'Close_change']], orders_file)
+                            all_data[('portfolio_stock', stock_ticker)] = ticker_plot
+                        else:
+                            # Just plot the performance of the stock regardless of ownership
+                            normalized = (data['Close'] / data['Close'].iloc[0]) * 100
+                            all_data[('portfolio_stock', stock_ticker)] = normalized
+                except Exception as e:
+                    print(f"Error fetching {stock_ticker}: {e}")
             else:
                 # Handle individual ticker
                 try:
@@ -948,7 +978,7 @@ def plot():
         if plot_portfolio:
             fig.add_trace(go.Scatter(
                 x=portfolio_plot.index,
-                y=portfolio_plot.values,  # Convert to percentage
+                y=portfolio_plot.values,
                 mode='lines',
                 name='Portfolio',
                 line=dict(width=3, color='#2E86AB'),
@@ -962,7 +992,11 @@ def plot():
         # Add traces for all data
         for i, (key, data) in enumerate(all_data.items()):
             if isinstance(key, tuple) and key[0] == 'sector':
-                name = f"{key[1]} (Sector)"
+                performance_suffix = " (Your Performance)" if plot_performance else " (Market Performance)"
+                name = f"{key[1]}{performance_suffix}"
+                line_style = dict(width=2, color=colors[color_index % len(colors)])
+            elif isinstance(key, tuple) and key[0] == 'portfolio_stock':
+                name = f"{key[1]} (Portfolio Stock)"
                 line_style = dict(width=2, color=colors[color_index % len(colors)])
             else:
                 name = key
@@ -990,7 +1024,8 @@ def plot():
         if selected_tickers:
             title_parts.extend([t.strip() for t in selected_tickers.split(',') if t.strip()])
         if selected_sectors:
-            title_parts.extend([f"{s.strip()} Sector" for s in selected_sectors.split(',') if s.strip()])
+            performance_type = " (Your Performance)" if plot_performance else " (Market Performance)"
+            title_parts.extend([f"{s.strip()} Sector{performance_type}" for s in selected_sectors.split(',') if s.strip()])
         
         title = "Normalized Performance: " + ", ".join(title_parts[:3])
         if len(title_parts) > 3:
