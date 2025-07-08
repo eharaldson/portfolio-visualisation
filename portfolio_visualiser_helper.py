@@ -12,7 +12,7 @@ def get_current_num_shares(current_order_data: pd.DataFrame, ticker: str) -> flo
 
 # From an input dictionary of ticker price data, generate a plot of sector performance by checking 
 # order file to get the correct weightings for the sector.
-def get_sector_plot(ticker_data: dict[str, pd.DataFrame], order_file: str) -> list[float]:
+def get_sector_portfolio_plot(ticker_data: dict[str, pd.DataFrame], order_file: str) -> list[float]:
     """
     Generate a list of weighted changes for each ticker in the sector based on order data.
     Args:
@@ -60,6 +60,51 @@ def get_sector_plot(ticker_data: dict[str, pd.DataFrame], order_file: str) -> li
                 # Get the close change for the ticker at the current timestamp
                 close_change = ticker_data[ticker].loc[timestamp]['Close_change']
                 weighted_change += close_change * ticker_weightings[ticker]
+
+        sector_normalised.append(sector_normalised[-1] * (1 + weighted_change))
+
+    # Get the data in a series with date in the index for plotting
+    sector_normalised = pd.Series(sector_normalised[1:], index=ticker_data[selected_tickers[0]].index)
+
+    return sector_normalised
+
+def get_sector_plot(ticker_data: dict[str, pd.DataFrame]) -> list[float]:
+    """
+    Generate a list of weighted changes for each ticker in the sector based on order data.
+    Args:
+        ticker_data (dict[str, pd.DataFrame]): Dictionary where keys are sector names and values are DataFrames
+            containing ticker price data with 'close_change' column.
+    Returns:
+        list[float]: List of weighted changes for each ticker in the sector.
+    """
+    selected_tickers = list(ticker_data.keys())
+
+    sector_normalised = [100]
+
+    # Ensure we are looking at the longest length of data to catch all historical data
+    max_length_index = None
+    max_length = 0
+
+    for ticker in selected_tickers:
+        length_data = len(ticker_data[ticker])
+        if length_data > max_length:
+            max_length = length_data
+            max_length_index = ticker_data[ticker].index
+
+    # Loop through and add weighting for each ticker in the sector
+    for timestamp in max_length_index:
+
+        # Get order data before the current date
+        t = timestamp.date()
+
+        # Calculate weighted change for each ticker
+        num_tickers_trading_at_timestamp = len([ticker for ticker in selected_tickers if timestamp in ticker_data[ticker].index])
+        weighted_change = 0
+        for ticker in selected_tickers:
+            if timestamp in ticker_data[ticker].index:
+                # Get the close change for the ticker at the current timestamp
+                close_change = ticker_data[ticker].loc[timestamp]['Close_change']
+                weighted_change += close_change / num_tickers_trading_at_timestamp
 
         sector_normalised.append(sector_normalised[-1] * (1 + weighted_change))
 

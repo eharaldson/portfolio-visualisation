@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
-from portfolio_visualiser_helper import get_sector_plot, get_stock_portfolio_allocation
+from portfolio_visualiser_helper import get_sector_plot, get_sector_portfolio_plot, get_stock_portfolio_allocation
 import os
 import csv
 import tempfile
