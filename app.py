@@ -801,19 +801,22 @@ def add_classification():
     """Add a new classification to the user's StockClassification.csv file"""
     try:
         # Get form data
-        classification_data = {
+        raw_data = {
             'Name': request.form.get('name'),
             'Ticker': request.form.get('ticker').upper(),
             'Allocation': float(request.form.get('allocation')),
             'Currency Listing': request.form.get('currency_listing'),
             'Main Listing': request.form.get('main_listing'),
             'Business Location': request.form.get('business_location'),
-            'L5': request.form.get('l5'),
-            'L4': request.form.get('l4'),
-            'L3': request.form.get('l3'),
-            'L2': request.form.get('l2'),
-            'L1': request.form.get('l1')
+            'L5': request.form.get('l5', '').strip(),
+            'L4': request.form.get('l4', '').strip(),
+            'L3': request.form.get('l3', '').strip(),
+            'L2': request.form.get('l2', '').strip(),
+            'L1': request.form.get('l1', '').strip()
         }
+        
+        # Apply hierarchical filling logic for L1-L5
+        classification_data = apply_hierarchical_filling(raw_data)
         
         classification_file = get_user_classification_file(current_user.id)
         
@@ -838,6 +841,40 @@ def add_classification():
         
     except Exception as e:
         return jsonify({'error': f'Error adding classification: {str(e)}'}), 500
+
+def apply_hierarchical_filling(data):
+    """Apply hierarchical filling logic to L1-L5 fields"""
+    # Create a copy of the data
+    filled_data = data.copy()
+    
+    # Get L1-L5 values, treating empty strings as None
+    levels = {}
+    for i in range(1, 6):
+        level_key = f'L{i}'
+        value = filled_data.get(level_key, '').strip()
+        levels[level_key] = value if value else None
+    
+    # Find the most specific level (highest number) that has a value
+    most_specific_value = None
+    most_specific_level = None
+    
+    for i in range(5, 0, -1):  # Check from L5 down to L1
+        level_key = f'L{i}'
+        if levels[level_key]:
+            most_specific_value = levels[level_key]
+            most_specific_level = i
+            break
+    
+    # If we found a most specific value, fill in any missing levels with this value
+    if most_specific_value:
+        for i in range(1, 6):  # Fill L1 through L5
+            level_key = f'L{i}'
+            if not levels[level_key]:  # If this level is empty
+                filled_data[level_key] = most_specific_value
+            else:
+                filled_data[level_key] = levels[level_key]
+    
+    return filled_data
 
 def validate_classification_csv_format(df):
     """Validate that the CSV has the correct columns and format for stock classification"""
@@ -960,6 +997,16 @@ def confirm_classification_upload():
         # Read the cleaned data
         df = pd.read_csv(temp_filepath)
         
+        # Apply hierarchical filling to each row
+        processed_rows = []
+        for _, row in df.iterrows():
+            row_dict = row.to_dict()
+            filled_row = apply_hierarchical_filling(row_dict)
+            processed_rows.append(filled_row)
+        
+        # Create new DataFrame with processed data
+        df_processed = pd.DataFrame(processed_rows)
+        
         # Get user's classification file
         classification_file = get_user_classification_file(current_user.id)
         if not classification_file:
@@ -974,8 +1021,8 @@ def confirm_classification_upload():
                 existing_df.to_csv(backup_file, index=False)
                 backup_created = True
         
-        # Save the new data
-        df.to_csv(classification_file, index=False)
+        # Save the processed data
+        df_processed.to_csv(classification_file, index=False)
         
         # Clean up
         try:
@@ -985,7 +1032,7 @@ def confirm_classification_upload():
         
         session.pop('pending_classification_upload', None)
         
-        message = f"Successfully uploaded {len(df)} classifications"
+        message = f"Successfully uploaded {len(df_processed)} classifications with hierarchical filling applied"
         if backup_created:
             message += ". Previous classifications backed up."
         
