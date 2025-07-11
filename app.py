@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from portfolio_analyser import PortfolioAnalyzer
-from portfolio_visualiser_helper import get_sector_plot, get_sector_portfolio_plot, get_individual_ticker_portfolio_plot, get_stock_portfolio_allocation
+from portfolio_visualiser_helper import get_sector_plot, get_sector_portfolio_plot, get_stock_portfolio_allocation
 import os
 import csv
 import tempfile
@@ -62,7 +62,7 @@ def init_user_files():
     if not os.path.exists(user_orders_file):
         with open(user_orders_file, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['user_id', 'orders_file'])
+            writer.writerow(['user_id', 'orders_file', 'classification_file'])
 
 def get_user_by_email(email):
     """Get user by email from CSV"""
@@ -118,19 +118,26 @@ def create_user(email, password):
     
     # Create user-specific orders file and add mapping
     orders_filename = f'Orders_{user_id}.csv'
+    classification_filename = f'StockClassification_{user_id}.csv'
+    
     with open(user_orders_file, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow([user_id, orders_filename])
+        writer.writerow([user_id, orders_filename, classification_filename])
     
     # Create empty orders file for the user
     with open(orders_filename, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['date', 'num_shares', 'company', 'ticker', 'price', 'foreign_commission', 'domestic_commission', 'order_type', 'split_ratio', 'merger_old_ticker'])
     
+    # Create empty stock classification file for the user
+    with open(classification_filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Name', 'Ticker', 'Allocation', 'Currency Listing', 'Main Listing', 'Business Location', 'L5', 'L4', 'L3', 'L2', 'L1'])
+    
     return User(str(user_id), email, password_hash)
 
-def get_user_orders_file(user_id):
-    """Get the orders file for a specific user"""
+def get_user_classification_file(user_id):
+    """Get the classification file for a specific user"""
     user_orders_file = 'user_orders_mapping.csv'
     if not os.path.exists(user_orders_file):
         return None
@@ -141,143 +148,26 @@ def get_user_orders_file(user_id):
         mapping_row = df[df['user_id'].astype(str) == str(user_id)]
         
         if not mapping_row.empty:
-            return mapping_row.iloc[0]['orders_file']
+            # Check if classification_file column exists
+            if 'classification_file' in df.columns:
+                return mapping_row.iloc[0]['classification_file']
+            else:
+                # Create classification file if mapping doesn't have it
+                classification_filename = f'StockClassification_{user_id}.csv'
+                # Add classification file to existing row
+                df.loc[df['user_id'].astype(str) == str(user_id), 'classification_file'] = classification_filename
+                df.to_csv(user_orders_file, index=False)
+                
+                # Create empty classification file
+                with open(classification_filename, 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['Name', 'Ticker', 'Allocation', 'Currency Listing', 'Main Listing', 'Business Location', 'L5', 'L4', 'L3', 'L2', 'L1'])
+                
+                return classification_filename
         return None
     except Exception as e:
-        print(f"Error in get_user_orders_file: {e}")
+        print(f"Error in get_user_classification_file: {e}")
         return None
-
-
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-import yfinance as yf
-import plotly.graph_objs as go
-import plotly.utils
-import json
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from portfolio_analyser import PortfolioAnalyzer
-from portfolio_visualiser_helper import get_sector_plot, get_stock_portfolio_allocation
-import os
-import csv
-import tempfile
-
-template_dir = 'Templates'
-app = Flask(__name__, template_folder=template_dir)
-app.secret_key = 'your-secret-key-change-this-in-production'  # Change this in production!
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
-
-# Initialize Flask-Login
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-login_manager.login_message = 'Please log in to access the dashboard.'
-
-# User class for Flask-Login
-class User(UserMixin):
-    def __init__(self, user_id, email, password_hash):
-        self.id = str(user_id)  # Ensure ID is always string
-        self.email = email
-        self.password_hash = password_hash
-    
-    def is_authenticated(self):
-        return True
-    
-    def is_active(self):
-        return True
-    
-    def is_anonymous(self):
-        return False
-    
-    def get_id(self):
-        return str(self.id)
-
-# User management functions
-def init_user_files():
-    """Initialize user management files if they don't exist"""
-    users_file = 'users.csv'
-    user_orders_file = 'user_orders_mapping.csv'
-    
-    if not os.path.exists(users_file):
-        with open(users_file, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['user_id', 'email', 'password_hash', 'created_at'])
-    
-    if not os.path.exists(user_orders_file):
-        with open(user_orders_file, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['user_id', 'orders_file'])
-
-def get_user_by_email(email):
-    """Get user by email from CSV"""
-    users_file = 'users.csv'
-    if not os.path.exists(users_file):
-        return None
-    
-    df = pd.read_csv(users_file)
-    user_row = df[df['email'] == email]
-    
-    if not user_row.empty:
-        row = user_row.iloc[0]
-        return User(row['user_id'], row['email'], row['password_hash'])
-    return None
-
-def get_user_by_id(user_id):
-    """Get user by ID from CSV"""
-    users_file = 'users.csv'
-    if not os.path.exists(users_file):
-        return None
-    
-    try:
-        df = pd.read_csv(users_file)
-        # Convert user_id to string for comparison since CSV stores as string
-        user_row = df[df['user_id'].astype(str) == str(user_id)]
-        
-        if not user_row.empty:
-            row = user_row.iloc[0]
-            return User(str(row['user_id']), row['email'], row['password_hash'])
-        return None
-    except Exception as e:
-        print(f"Error in get_user_by_id: {e}")
-        return None
-
-def create_user(email, password):
-    """Create a new user"""
-    users_file = 'users.csv'
-    user_orders_file = 'user_orders_mapping.csv'
-    
-    # Check if user already exists
-    if get_user_by_email(email):
-        return None
-    
-    # Generate user ID (timestamp-based)
-    user_id = str(int(datetime.now().timestamp()))
-    password_hash = generate_password_hash(password)
-    created_at = datetime.now().isoformat()
-    
-    # Add user to users.csv
-    with open(users_file, 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([user_id, email, password_hash, created_at])
-    
-    # Create user-specific orders file and add mapping
-    orders_filename = f'Orders_{user_id}.csv'
-    with open(user_orders_file, 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([user_id, orders_filename])
-    
-    # Create empty orders file for the user
-    with open(orders_filename, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['date', 'num_shares', 'company', 'ticker', 'price', 'foreign_commission', 'domestic_commission', 'order_type', 'split_ratio', 'merger_old_ticker'])
-    
-    return User(str(user_id), email, password_hash)
 
 def get_user_orders_file(user_id):
     """Get the orders file for a specific user"""
@@ -829,6 +719,301 @@ def delete_last_order():
     except Exception as e:
         return jsonify({'error': f'Error deleting order: {str(e)}'}), 500
 
+# Stock Classification Management Routes
+@app.route('/download_classification')
+@login_required
+def download_classification():
+    """Download the user's StockClassification.csv file"""
+    try:
+        classification_file = get_user_classification_file(current_user.id)
+        if classification_file and os.path.exists(classification_file):
+            return send_file(classification_file, as_attachment=True, download_name='My_StockClassification.csv')
+        else:
+            return jsonify({'error': 'Classification file not found'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error downloading file: {str(e)}'}), 500
+
+@app.route('/get_classification_dropdown_data')
+@login_required
+def get_classification_dropdown_data():
+    """Get unique values for dropdown fields from existing classification data"""
+    try:
+        classification_file = get_user_classification_file(current_user.id)
+        if classification_file and os.path.exists(classification_file):
+            df = pd.read_csv(classification_file)
+            
+            # Get unique values for each dropdown field
+            dropdown_data = {}
+            dropdown_fields = ['Currency Listing', 'Main Listing', 'Business Location', 'L5', 'L4', 'L3', 'L2', 'L1']
+            
+            for field in dropdown_fields:
+                if field in df.columns:
+                    unique_values = df[field].dropna().unique().tolist()
+                    # Remove empty strings and sort
+                    unique_values = sorted([str(val) for val in unique_values if str(val).strip() != ''])
+                    dropdown_data[field] = unique_values
+                else:
+                    dropdown_data[field] = []
+            
+            return jsonify({'dropdown_data': dropdown_data})
+        else:
+            # Return empty dropdown data if no file exists
+            dropdown_fields = ['Currency Listing', 'Main Listing', 'Business Location', 'L5', 'L4', 'L3', 'L2', 'L1']
+            dropdown_data = {field: [] for field in dropdown_fields}
+            return jsonify({'dropdown_data': dropdown_data})
+    except Exception as e:
+        return jsonify({'error': f'Error getting dropdown data: {str(e)}'}), 500
+
+@app.route('/validate_ticker', methods=['POST'])
+@login_required
+def validate_ticker():
+    """Validate ticker using yfinance API"""
+    try:
+        ticker = request.form.get('ticker', '').strip().upper()
+        if not ticker:
+            return jsonify({'error': 'Ticker is required'}), 400
+        
+        # Check if ticker exists using yfinance
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            
+            # Check if we got valid data
+            if info and 'symbol' in info:
+                company_name = info.get('longName', info.get('shortName', ticker))
+                return jsonify({
+                    'valid': True, 
+                    'ticker': ticker,
+                    'company_name': company_name
+                })
+            else:
+                return jsonify({'valid': False, 'error': 'Ticker not found'})
+                
+        except Exception as e:
+            return jsonify({'valid': False, 'error': 'Ticker validation failed'})
+            
+    except Exception as e:
+        return jsonify({'error': f'Error validating ticker: {str(e)}'}), 500
+
+@app.route('/add_classification', methods=['POST'])
+@login_required
+def add_classification():
+    """Add a new classification to the user's StockClassification.csv file"""
+    try:
+        # Get form data
+        classification_data = {
+            'Name': request.form.get('name'),
+            'Ticker': request.form.get('ticker').upper(),
+            'Allocation': float(request.form.get('allocation')),
+            'Currency Listing': request.form.get('currency_listing'),
+            'Main Listing': request.form.get('main_listing'),
+            'Business Location': request.form.get('business_location'),
+            'L5': request.form.get('l5'),
+            'L4': request.form.get('l4'),
+            'L3': request.form.get('l3'),
+            'L2': request.form.get('l2'),
+            'L1': request.form.get('l1')
+        }
+        
+        classification_file = get_user_classification_file(current_user.id)
+        
+        if not classification_file:
+            return jsonify({'error': 'Classification file not found for user'}), 404
+        
+        # Check if file exists
+        if os.path.exists(classification_file):
+            # Read existing data
+            df = pd.read_csv(classification_file)
+            # Append new classification
+            new_classification_df = pd.DataFrame([classification_data])
+            df = pd.concat([df, new_classification_df], ignore_index=True)
+        else:
+            # Create new file
+            df = pd.DataFrame([classification_data])
+        
+        # Save to CSV
+        df.to_csv(classification_file, index=False)
+        
+        return jsonify({'success': True, 'message': 'Classification added successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error adding classification: {str(e)}'}), 500
+
+def validate_classification_csv_format(df):
+    """Validate that the CSV has the correct columns and format for stock classification"""
+    required_columns = [
+        'Name', 'Ticker', 'Allocation', 'Currency Listing', 'Main Listing', 
+        'Business Location', 'L5', 'L4', 'L3', 'L2', 'L1'
+    ]
+    
+    # Check if all required columns are present
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        return False, f"Missing required columns: {', '.join(missing_columns)}"
+    
+    # Check if there are extra columns
+    extra_columns = [col for col in df.columns if col not in required_columns]
+    if extra_columns:
+        return False, f"Unexpected columns found: {', '.join(extra_columns)}"
+    
+    # Check if DataFrame is empty
+    if df.empty:
+        return False, "CSV file is empty"
+    
+    # Validate data types and required fields
+    try:
+        for index, row in df.iterrows():
+            # Required fields
+            if pd.isna(row['Name']) or str(row['Name']).strip() == '':
+                return False, f"Row {index + 1}: Name is required"
+            if pd.isna(row['Ticker']) or str(row['Ticker']).strip() == '':
+                return False, f"Row {index + 1}: Ticker is required"
+            if pd.isna(row['Allocation']):
+                return False, f"Row {index + 1}: Allocation is required"
+            
+            # Validate allocation is between 0 and 1
+            try:
+                allocation = float(row['Allocation'])
+                if allocation < 0 or allocation > 1:
+                    return False, f"Row {index + 1}: Allocation must be between 0 and 1"
+            except (ValueError, TypeError):
+                return False, f"Row {index + 1}: Allocation must be a number between 0 and 1"
+    
+    except Exception as e:
+        return False, f"Error validating data: {str(e)}"
+    
+    return True, "CSV format is valid"
+
+@app.route('/upload_classification', methods=['POST'])
+@login_required
+def upload_classification():
+    """Upload and validate CSV file of stock classifications"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.lower().endswith('.csv'):
+            return jsonify({'error': 'File must be a CSV'}), 400
+        
+        # Read and validate the CSV
+        try:
+            df = pd.read_csv(file)
+        except Exception as e:
+            return jsonify({'error': f'Error reading CSV file: {str(e)}'}), 400
+        
+        # Validate CSV format
+        is_valid, message = validate_classification_csv_format(df)
+        if not is_valid:
+            return jsonify({'error': message}), 400
+        
+        # Store the validated data temporarily
+        temp_filename = f"temp_classification_upload_{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+        
+        # Clean and save data
+        df_clean = df.copy()
+        df_clean['Ticker'] = df_clean['Ticker'].str.upper()
+        df_clean = df_clean.fillna('')
+        
+        df_clean.to_csv(temp_filepath, index=False)
+        
+        # Store temp filename in session
+        session['pending_classification_upload'] = {
+            'temp_file': temp_filename,
+            'original_filename': secure_filename(file.filename),
+            'row_count': len(df)
+        }
+        
+        # Create preview
+        preview_df = df.head(3).fillna('')
+        preview_data = preview_df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'message': 'CSV validated successfully',
+            'row_count': len(df),
+            'preview': preview_data
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error processing upload: {str(e)}'}), 500
+
+@app.route('/confirm_classification_upload', methods=['POST'])
+@login_required
+def confirm_classification_upload():
+    """Confirm and apply the uploaded classification CSV data"""
+    try:
+        if 'pending_classification_upload' not in session:
+            return jsonify({'error': 'No pending upload found'}), 400
+        
+        upload_data = session['pending_classification_upload']
+        temp_filename = upload_data['temp_file']
+        temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+        
+        if not os.path.exists(temp_filepath):
+            return jsonify({'error': 'Temporary file not found. Please upload again.'}), 400
+        
+        # Read the cleaned data
+        df = pd.read_csv(temp_filepath)
+        
+        # Get user's classification file
+        classification_file = get_user_classification_file(current_user.id)
+        if not classification_file:
+            return jsonify({'error': 'User classification file not found'}), 404
+        
+        # Backup existing file if it exists and has data
+        backup_created = False
+        if os.path.exists(classification_file):
+            existing_df = pd.read_csv(classification_file)
+            if not existing_df.empty:
+                backup_file = f"{classification_file}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                existing_df.to_csv(backup_file, index=False)
+                backup_created = True
+        
+        # Save the new data
+        df.to_csv(classification_file, index=False)
+        
+        # Clean up
+        try:
+            os.remove(temp_filepath)
+        except:
+            pass
+        
+        session.pop('pending_classification_upload', None)
+        
+        message = f"Successfully uploaded {len(df)} classifications"
+        if backup_created:
+            message += ". Previous classifications backed up."
+        
+        return jsonify({'success': True, 'message': message})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error confirming upload: {str(e)}'}), 500
+
+@app.route('/cancel_classification_upload', methods=['POST'])
+@login_required
+def cancel_classification_upload():
+    """Cancel the pending classification upload"""
+    try:
+        if 'pending_classification_upload' in session:
+            upload_data = session['pending_classification_upload']
+            if 'temp_file' in upload_data:
+                temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], upload_data['temp_file'])
+                try:
+                    if os.path.exists(temp_filepath):
+                        os.remove(temp_filepath)
+                except:
+                    pass
+        
+        session.pop('pending_classification_upload', None)
+        return jsonify({'success': True, 'message': 'Upload cancelled'})
+    except Exception as e:
+        return jsonify({'error': f'Error cancelling upload: {str(e)}'}), 500
+
 @app.route('/plot', methods=['POST'])
 @login_required
 def plot():
@@ -862,8 +1047,8 @@ def plot():
             for t in selected_tickers.split(','):
                 t = t.strip()
                 if t and t not in tickers_to_plot:
-                    tickers_to_plot.append(('portfolio_stock', t, plot_performance))
-                    trace_names.append(f"{t} (Portfolio Stock)")
+                    tickers_to_plot.append(t)
+                    trace_names.append(t)
         
         # Add tickers from selected sectors
         if selected_sectors:
@@ -933,27 +1118,6 @@ def plot():
                         # Use equal-weight plotting (market performance)
                         sector_plot = get_sector_plot(sector_data)
                     all_data[('sector', sector_name)] = sector_plot
-            elif isinstance(item, tuple) and item[0] == 'portfolio_stock':
-                # Handle individual portfolio stock
-                _, stock_ticker, use_performance = item
-                try:
-                    stock = yf.Ticker(stock_ticker)
-                    data = stock.history(start=start_date, end=end_date)
-                    data['Close_change'] = data['Close'].pct_change().fillna(0)
-
-                    if not data.empty:
-                        # Calculate sector plot using the appropriate function
-                        orders_file = get_user_orders_file(current_user.id)
-                        if use_performance and orders_file:
-                            # Use performance-based plotting (user's actual holdings)
-                            ticker_plot = get_individual_ticker_portfolio_plot(stock_ticker, data[['Close', 'Close_change']], orders_file)
-                            all_data[('portfolio_stock', stock_ticker)] = ticker_plot
-                        else:
-                            # Just plot the performance of the stock regardless of ownership
-                            normalized = (data['Close'] / data['Close'].iloc[0]) * 100
-                            all_data[('portfolio_stock', stock_ticker)] = normalized
-                except Exception as e:
-                    print(f"Error fetching {stock_ticker}: {e}")
             else:
                 # Handle individual ticker
                 try:
@@ -994,9 +1158,6 @@ def plot():
             if isinstance(key, tuple) and key[0] == 'sector':
                 performance_suffix = " (Your Performance)" if plot_performance else " (Market Performance)"
                 name = f"{key[1]}{performance_suffix}"
-                line_style = dict(width=2, color=colors[color_index % len(colors)])
-            elif isinstance(key, tuple) and key[0] == 'portfolio_stock':
-                name = f"{key[1]} (Portfolio Stock)"
                 line_style = dict(width=2, color=colors[color_index % len(colors)])
             else:
                 name = key

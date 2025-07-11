@@ -1,3 +1,206 @@
+<!-- Upload CSV Modal -->
+<div id="uploadModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeUploadModal()">&times;</span>
+        <h2 id="uploadModalTitle">Upload Orders CSV</h2>
+        
+        <div id="uploadStep1" class="upload-step">
+            <p>Upload a CSV file with your stock orders. The file must contain these columns:</p>
+            <div class="required-columns">
+                <code>date, num_shares, company, ticker, price, foreign_commission, domestic_commission, order_type, split_ratio, merger_old_ticker</code>
+            </div>
+            
+            <div class="file-upload-area" id="fileUploadArea">
+                <input type="file" id="csvFile" accept=".csv" style="display: none;">
+                <div class="upload-placeholder" onclick="document.getElementById('csvFile').click()">
+                    📁 Click to select CSV file or drag and drop
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="button" onclick="console.log('Upload button clicked'); uploadCSV()" id="uploadBtn" disabled>Validate & Preview</button>
+                <button type="button" class="secondary" onclick="closeUploadModal()">Cancel</button>
+            </div>
+        </div>
+        
+        <div id="uploadStep2" class="upload-step" style="display: none;">
+            <h3>CSV Validation Results</h3>
+            <div id="validationResults"></div>
+            <div id="previewSection" style="display: none;">
+                <h4>Preview (first 3 rows):</h4>
+                <div class="csv-preview-container">
+                    <div id="csvPreview"></div>
+                </div>
+            </div>
+            
+            <div class="warning-box">
+                ⚠️ <strong>Warning:</strong> This will replace your existing orders file. Your current orders will be backed up automatically.
+            </div>
+            
+            <div class="button-group">
+                <button type="button" onclick="confirmUpload()" id="confirmBtn" class="delete-btn">Replace Orders File</button>
+                <button type="button" class="secondary" onclick="backToUpload()">Back</button>
+                <button type="button" class="secondary" onclick="closeUploadModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Classification Modal -->
+<div id="classificationModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeClassificationModal()">&times;</span>
+        <h2 id="classificationModalTitle">Add New Stock Classification</h2>
+        
+        <form id="classificationForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="classificationName">Company Name:</label>
+                    <input type="text" id="classificationName" name="name" required placeholder="e.g., Apple Inc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="classificationTicker">Ticker:</label>
+                    <input type="text" id="classificationTicker" name="ticker" required placeholder="e.g., AAPL">
+                    <button type="button" onclick="validateTicker()" id="validateTickerBtn" class="secondary" style="margin-top: 5px; width: 100%;">Validate Ticker</button>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="classificationAllocation">Allocation (0-1):</label>
+                    <input type="number" id="classificationAllocation" name="allocation" step="0.01" min="0" max="1" required placeholder="0.5">
+                </div>
+                
+                <div class="form-group">
+                    <label for="classificationCurrencyListing">Currency Listing:</label>
+                    <select id="classificationCurrencyListing" name="currency_listing" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationCurrencyListingCustom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="classificationMainListing">Main Listing:</label>
+                    <select id="classificationMainListing" name="main_listing" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationMainListingCustom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="classificationBusinessLocation">Business Location:</label>
+                    <select id="classificationBusinessLocation" name="business_location" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationBusinessLocationCustom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="classificationL5">L5 (Most Specific):</label>
+                    <select id="classificationL5" name="l5" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationL5Custom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="classificationL4">L4:</label>
+                    <select id="classificationL4" name="l4" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationL4Custom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="classificationL3">L3:</label>
+                    <select id="classificationL3" name="l3" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationL3Custom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="classificationL2">L2:</label>
+                    <select id="classificationL2" name="l2" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationL2Custom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="classificationL1">L1 (Least Specific):</label>
+                    <select id="classificationL1" name="l1" class="dropdown-with-custom">
+                        <option value="">Select or type new...</option>
+                    </select>
+                    <input type="text" id="classificationL1Custom" placeholder="Or enter new value" style="display: none; margin-top: 5px;">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" id="submitClassificationBtn">Add Classification</button>
+                <button type="button" class="secondary" onclick="closeClassificationModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Upload Classification CSV Modal -->
+<div id="uploadClassificationModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeUploadClassificationModal()">&times;</span>
+        <h2 id="uploadClassificationModalTitle">Upload Stock Classification CSV</h2>
+        
+        <div id="uploadClassificationStep1" class="upload-step">
+            <p>Upload a CSV file with your stock classifications. The file must contain these columns:</p>
+            <div class="required-columns">
+                <code>Name, Ticker, Allocation, Currency Listing, Main Listing, Business Location, L5, L4, L3, L2, L1</code>
+            </div>
+            
+            <div class="file-upload-area" id="fileUploadClassificationArea">
+                <input type="file" id="csvClassificationFile" accept=".csv" style="display: none;">
+                <div class="upload-placeholder" onclick="document.getElementById('csvClassificationFile').click()">
+                    📁 Click to select CSV file or drag and drop
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="button" onclick="uploadClassificationCSV()" id="uploadClassificationBtn" disabled>Validate & Preview</button>
+                <button type="button" class="secondary" onclick="closeUploadClassificationModal()">Cancel</button>
+            </div>
+        </div>
+        
+        <div id="uploadClassificationStep2" class="upload-step" style="display: none;">
+            <h3>CSV Validation Results</h3>
+            <div id="validationClassificationResults"></div>
+            <div id="previewClassificationSection" style="display: none;">
+                <h4>Preview (first 3 rows):</h4>
+                <div class="csv-preview-container">
+                    <div id="csvClassificationPreview"></div>
+                </div>
+            </div>
+            
+            <div class="warning-box">
+                ⚠️ <strong>Warning:</strong> This will replace your existing classification file. Your current classifications will be backed up automatically.
+            </div>
+            
+            <div class="button-group">
+                <button type="button" onclick="confirmClassificationUpload()" id="confirmClassificationBtn" class="delete-btn">Replace Classification File</button>
+                <button type="button" class="secondary" onclick="backToClassificationUpload()">Back</button>
+                <button type="button" class="secondary" onclick="closeUploadClassificationModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -395,6 +598,49 @@
             flex-wrap: wrap;
         }
 
+        .dropdown-with-custom {
+            width: 100%;
+        }
+
+        .dropdown-with-custom option[value="custom"] {
+            font-style: italic;
+            color: #4CAF50;
+        }
+
+        .classification-management {
+            margin-bottom: 20px;
+        }
+
+        .ticker-validation {
+            margin-top: 5px;
+            font-size: 12px;
+        }
+
+        .ticker-valid {
+            color: #99ff99;
+        }
+
+        .ticker-invalid {
+            color: #ff9999;
+        }
+
+        .auto-fill-indicator {
+            font-size: 11px !important;
+            color: #4CAF50 !important;
+            font-style: italic !important;
+            margin-top: 2px !important;
+        }
+
+        #hierarchicalPreview {
+            background-color: #3a3e40 !important;
+            padding: 10px !important;
+            border-radius: 5px !important;
+            margin: 10px 0 !important;
+            font-size: 12px !important;
+            color: #4CAF50 !important;
+            border-left: 3px solid #4CAF50 !important;
+        }
+
         .user-info {
             display: flex;
             align-items: center;
@@ -558,6 +804,20 @@
             </div>
 
             <div id="orderStatus"></div>
+            
+            <h2>🏷️ Stock Classification Management</h2>
+            
+            <div class="classification-management">
+                <div class="order-section">
+                    <div class="button-group">
+                        <button class="order-btn" onclick="downloadClassification()">📥 Download Classifications</button>
+                        <button class="order-btn" onclick="openAddClassificationModal()">➕ Add Classification</button>
+                        <button class="order-btn" onclick="openUploadClassificationModal()">📤 Upload CSV</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="classificationStatus"></div>
         </div>
     </div>
 
@@ -694,6 +954,7 @@
         let portfolioData = {};
         let sectorData = {};
         let isEditMode = false;
+        let dropdownData = {};
         
         // Initialize the page
         async function initialize() {
@@ -711,6 +972,9 @@
             
             // Load portfolio allocation chart
             await loadPortfolioAllocation();
+            
+            // Load dropdown data for classifications
+            await loadDropdownData();
         }
         
         // Load portfolio tickers and sectors
@@ -1044,6 +1308,487 @@
             }, 5000);
         }
 
+        function showClassificationStatus(message, type) {
+            const statusDiv = document.getElementById('classificationStatus');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // Load dropdown data for classification form
+        async function loadDropdownData() {
+            try {
+                const response = await fetch('/get_classification_dropdown_data');
+                const data = await response.json();
+                
+                if (data.dropdown_data) {
+                    dropdownData = data.dropdown_data;
+                    console.log('Dropdown data loaded:', dropdownData);
+                }
+            } catch (error) {
+                console.error('Error loading dropdown data:', error);
+            }
+        }
+
+        // Populate dropdown with existing values plus custom option
+        function populateDropdown(selectId, fieldName) {
+            const select = document.getElementById(selectId);
+            const values = dropdownData[fieldName] || [];
+            
+            // Clear existing options except first one
+            select.innerHTML = '<option value="">Select or type new...</option>';
+            
+            // Add existing values
+            values.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+            
+            // Add custom option
+            const customOption = document.createElement('option');
+            customOption.value = 'custom';
+            customOption.textContent = '+ Enter new value';
+            customOption.style.fontStyle = 'italic';
+            customOption.style.color = '#4CAF50';
+            select.appendChild(customOption);
+        }
+
+        // Handle dropdown change to show/hide custom input
+        function handleDropdownChange(selectId, customInputId) {
+            const select = document.getElementById(selectId);
+            const customInput = document.getElementById(customInputId);
+            
+            if (select.value === 'custom') {
+                customInput.style.display = 'block';
+                customInput.focus();
+            } else {
+                customInput.style.display = 'none';
+                customInput.value = '';
+            }
+        }
+
+        // Set up dropdown event listeners
+        function setupDropdowns() {
+            const dropdowns = [
+                {select: 'classificationCurrencyListing', custom: 'classificationCurrencyListingCustom', field: 'Currency Listing'},
+                {select: 'classificationMainListing', custom: 'classificationMainListingCustom', field: 'Main Listing'},
+                {select: 'classificationBusinessLocation', custom: 'classificationBusinessLocationCustom', field: 'Business Location'},
+                {select: 'classificationL5', custom: 'classificationL5Custom', field: 'L5'},
+                {select: 'classificationL4', custom: 'classificationL4Custom', field: 'L4'},
+                {select: 'classificationL3', custom: 'classificationL3Custom', field: 'L3'},
+                {select: 'classificationL2', custom: 'classificationL2Custom', field: 'L2'},
+                {select: 'classificationL1', custom: 'classificationL1Custom', field: 'L1'}
+            ];
+
+            dropdowns.forEach(dropdown => {
+                populateDropdown(dropdown.select, dropdown.field);
+                
+                document.getElementById(dropdown.select).addEventListener('change', function() {
+                    handleDropdownChange(dropdown.select, dropdown.custom);
+                    // Update hierarchical filling preview for L1-L5 fields
+                    if (dropdown.field.startsWith('L')) {
+                        updateHierarchicalPreview();
+                    }
+                });
+                
+                // Also add event listeners to custom inputs for L1-L5
+                if (dropdown.field.startsWith('L')) {
+                    document.getElementById(dropdown.custom).addEventListener('input', function() {
+                        updateHierarchicalPreview();
+                    });
+                }
+            });
+        }
+
+        // Update hierarchical filling preview
+        function updateHierarchicalPreview() {
+            const levels = {};
+            
+            // Get current values for L1-L5
+            for (let i = 1; i <= 5; i++) {
+                const selectId = `classificationL${i}`;
+                const customId = `classificationL${i}Custom`;
+                const selectElement = document.getElementById(selectId);
+                const customElement = document.getElementById(customId);
+                
+                let value = '';
+                if (selectElement.value === 'custom') {
+                    value = customElement.value.trim();
+                } else {
+                    value = selectElement.value.trim();
+                }
+                
+                levels[`L${i}`] = value;
+            }
+            
+            // Find the most specific (highest number) level that has a value
+            let mostSpecificValue = '';
+            let mostSpecificLevel = 0;
+            
+            for (let i = 5; i >= 1; i--) {
+                if (levels[`L${i}`]) {
+                    mostSpecificValue = levels[`L${i}`];
+                    mostSpecificLevel = i;
+                    break;
+                }
+            }
+            
+            // Update preview text and apply visual hints
+            const previewDiv = document.getElementById('hierarchicalPreview');
+            if (previewDiv) {
+                previewDiv.remove();
+            }
+            
+            if (mostSpecificValue && mostSpecificLevel > 0) {
+                // Create preview div
+                const newPreviewDiv = document.createElement('div');
+                newPreviewDiv.id = 'hierarchicalPreview';
+                newPreviewDiv.style.cssText = `
+                    background-color: #3a3e40;
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                    font-size: 12px;
+                    color: #4CAF50;
+                `;
+                
+                let willFill = [];
+                for (let i = 1; i <= 5; i++) {
+                    if (!levels[`L${i}`] && i !== mostSpecificLevel) {
+                        willFill.push(`L${i}`);
+                    }
+                }
+                
+                if (willFill.length > 0) {
+                    newPreviewDiv.innerHTML = `
+                        <strong>📝 Auto-fill Preview:</strong><br>
+                        Empty levels (${willFill.join(', ')}) will be filled with: "<em>${mostSpecificValue}</em>"
+                    `;
+                } else {
+                    newPreviewDiv.innerHTML = `
+                        <strong>✅ All levels filled:</strong> No auto-filling needed
+                    `;
+                }
+                
+                // Insert after the L1 field
+                const l1Field = document.getElementById('classificationL1').parentNode.parentNode;
+                l1Field.parentNode.insertBefore(newPreviewDiv, l1Field.nextSibling);
+                
+                // Add visual indicators to fields that will be auto-filled
+                for (let i = 1; i <= 5; i++) {
+                    const selectElement = document.getElementById(`classificationL${i}`);
+                    const fieldGroup = selectElement.parentNode;
+                    
+                    // Remove existing indicators
+                    const existingIndicator = fieldGroup.querySelector('.auto-fill-indicator');
+                    if (existingIndicator) {
+                        existingIndicator.remove();
+                    }
+                    
+                    // Add indicator if this field will be auto-filled
+                    if (!levels[`L${i}`] && mostSpecificValue && i !== mostSpecificLevel) {
+                        const indicator = document.createElement('div');
+                        indicator.className = 'auto-fill-indicator';
+                        indicator.style.cssText = `
+                            font-size: 11px;
+                            color: #4CAF50;
+                            font-style: italic;
+                            margin-top: 2px;
+                        `;
+                        indicator.textContent = `Will auto-fill: "${mostSpecificValue}"`;
+                        fieldGroup.appendChild(indicator);
+                    }
+                }
+            } else {
+                // Remove any existing indicators
+                document.querySelectorAll('.auto-fill-indicator').forEach(indicator => {
+                    indicator.remove();
+                });
+            }
+        }
+
+        // Stock Classification Management Functions
+        async function downloadClassification() {
+            try {
+                const response = await fetch('/download_classification');
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'StockClassification.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showClassificationStatus('Classifications downloaded successfully!', 'success');
+                } else {
+                    const errorData = await response.json();
+                    showClassificationStatus(`Error: ${errorData.error}`, 'error');
+                }
+            } catch (error) {
+                showClassificationStatus(`Error downloading classifications: ${error.message}`, 'error');
+            }
+        }
+
+        function openAddClassificationModal() {
+            document.getElementById('classificationModalTitle').textContent = 'Add New Stock Classification';
+            document.getElementById('submitClassificationBtn').textContent = 'Add Classification';
+            clearClassificationForm();
+            setupDropdowns();
+            document.getElementById('classificationModal').style.display = 'block';
+        }
+
+        function closeClassificationModal() {
+            document.getElementById('classificationModal').style.display = 'none';
+            clearClassificationForm();
+        }
+
+        function clearClassificationForm() {
+            document.getElementById('classificationForm').reset();
+            
+            // Hide all custom inputs
+            document.querySelectorAll('[id$="Custom"]').forEach(input => {
+                input.style.display = 'none';
+                input.value = '';
+            });
+            
+            // Clear validation message
+            const validationDiv = document.getElementById('tickerValidation');
+            if (validationDiv) {
+                validationDiv.remove();
+            }
+            
+            // Clear hierarchical preview
+            const previewDiv = document.getElementById('hierarchicalPreview');
+            if (previewDiv) {
+                previewDiv.remove();
+            }
+            
+            // Clear auto-fill indicators
+            document.querySelectorAll('.auto-fill-indicator').forEach(indicator => {
+                indicator.remove();
+            });
+        }
+
+        async function validateTicker() {
+            const ticker = document.getElementById('classificationTicker').value.trim().toUpperCase();
+            const button = document.getElementById('validateTickerBtn');
+            
+            if (!ticker) {
+                showClassificationStatus('Please enter a ticker to validate', 'error');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Validating...';
+
+            try {
+                const formData = new FormData();
+                formData.append('ticker', ticker);
+
+                const response = await fetch('/validate_ticker', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // Remove existing validation message
+                const existingValidation = document.getElementById('tickerValidation');
+                if (existingValidation) {
+                    existingValidation.remove();
+                }
+
+                // Create validation message
+                const validationDiv = document.createElement('div');
+                validationDiv.id = 'tickerValidation';
+                validationDiv.className = 'ticker-validation';
+
+                if (data.valid) {
+                    validationDiv.className += ' ticker-valid';
+                    validationDiv.textContent = `✅ Valid ticker: ${data.company_name}`;
+                    
+                    // Auto-fill company name if empty
+                    const nameField = document.getElementById('classificationName');
+                    if (!nameField.value && data.company_name) {
+                        nameField.value = data.company_name;
+                    }
+                } else {
+                    validationDiv.className += ' ticker-invalid';
+                    validationDiv.textContent = `❌ Invalid ticker: ${data.error}`;
+                }
+
+                // Insert after ticker input
+                const tickerInput = document.getElementById('classificationTicker');
+                tickerInput.parentNode.insertBefore(validationDiv, tickerInput.nextSibling);
+
+            } catch (error) {
+                showClassificationStatus(`Error validating ticker: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Validate Ticker';
+            }
+        }
+
+        // CSV Upload Functions for Classifications
+        function openUploadClassificationModal() {
+            document.getElementById('uploadClassificationModal').style.display = 'block';
+            document.getElementById('uploadClassificationStep1').style.display = 'block';
+            document.getElementById('uploadClassificationStep2').style.display = 'none';
+            resetClassificationUploadForm();
+        }
+
+        function closeUploadClassificationModal() {
+            document.getElementById('uploadClassificationModal').style.display = 'none';
+            resetClassificationUploadForm();
+        }
+
+        function resetClassificationUploadForm() {
+            document.getElementById('csvClassificationFile').value = '';
+            document.getElementById('uploadClassificationBtn').disabled = true;
+            document.querySelector('#fileUploadClassificationArea .upload-placeholder').textContent = '📁 Click to select CSV file or drag and drop';
+            document.getElementById('validationClassificationResults').innerHTML = '';
+            document.getElementById('csvClassificationPreview').innerHTML = '';
+        }
+
+        function backToClassificationUpload() {
+            document.getElementById('uploadClassificationStep1').style.display = 'block';
+            document.getElementById('uploadClassificationStep2').style.display = 'none';
+        }
+
+        // File selection handler for classification CSV
+        document.getElementById('csvClassificationFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.querySelector('#fileUploadClassificationArea .upload-placeholder').textContent = `📄 ${file.name}`;
+                document.getElementById('uploadClassificationBtn').disabled = false;
+            } else {
+                document.querySelector('#fileUploadClassificationArea .upload-placeholder').textContent = '📁 Click to select CSV file or drag and drop';
+                document.getElementById('uploadClassificationBtn').disabled = true;
+            }
+        });
+
+        // Drag and drop for classification CSV
+        const uploadClassificationArea = document.getElementById('fileUploadClassificationArea');
+        
+        uploadClassificationArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadClassificationArea.classList.add('dragover');
+        });
+
+        uploadClassificationArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadClassificationArea.classList.remove('dragover');
+        });
+
+        uploadClassificationArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadClassificationArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.name.toLowerCase().endsWith('.csv')) {
+                    document.getElementById('csvClassificationFile').files = files;
+                    document.querySelector('#fileUploadClassificationArea .upload-placeholder').textContent = `📄 ${file.name}`;
+                    document.getElementById('uploadClassificationBtn').disabled = false;
+                } else {
+                    showClassificationStatus('Please select a CSV file', 'error');
+                }
+            }
+        });
+
+        async function uploadClassificationCSV() {
+            const fileInput = document.getElementById('csvClassificationFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showClassificationStatus('Please select a file', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                document.getElementById('uploadClassificationBtn').disabled = true;
+                document.getElementById('uploadClassificationBtn').textContent = 'Validating...';
+
+                const response = await fetch('/upload_classification', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show validation results
+                    document.getElementById('validationClassificationResults').innerHTML = `
+                        <div class="success">
+                            ✅ ${data.message}<br>
+                            📊 Found ${data.row_count} classifications in the file
+                        </div>
+                    `;
+
+                    // Show preview
+                    if (data.preview && data.preview.length > 0) {
+                        const previewHtml = createPreviewTable(data.preview);
+                        document.getElementById('csvClassificationPreview').innerHTML = previewHtml;
+                        document.getElementById('previewClassificationSection').style.display = 'block';
+                    }
+
+                    // Move to step 2
+                    document.getElementById('uploadClassificationStep1').style.display = 'none';
+                    document.getElementById('uploadClassificationStep2').style.display = 'block';
+                } else {
+                    document.getElementById('validationClassificationResults').innerHTML = `
+                        <div class="error">❌ ${data.error}</div>
+                    `;
+                    document.getElementById('uploadClassificationStep1').style.display = 'none';
+                    document.getElementById('uploadClassificationStep2').style.display = 'block';
+                    document.getElementById('previewClassificationSection').style.display = 'none';
+                }
+            } catch (error) {
+                showClassificationStatus(`Error uploading file: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('uploadClassificationBtn').disabled = false;
+                document.getElementById('uploadClassificationBtn').textContent = 'Validate & Preview';
+            }
+        }
+
+        async function confirmClassificationUpload() {
+            try {
+                document.getElementById('confirmClassificationBtn').disabled = true;
+                document.getElementById('confirmClassificationBtn').textContent = 'Uploading...';
+
+                const response = await fetch('/confirm_classification_upload', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showClassificationStatus(data.message, 'success');
+                    closeUploadClassificationModal();
+                    // Reload dropdown data
+                    await loadDropdownData();
+                } else {
+                    showClassificationStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showClassificationStatus(`Error confirming upload: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('confirmClassificationBtn').disabled = false;
+                document.getElementById('confirmClassificationBtn').textContent = 'Replace Classification File';
+            }
+        }
+
         // CSV Upload Functions
         function openUploadModal() {
             document.getElementById('uploadModal').style.display = 'block';
@@ -1257,10 +2002,6 @@
             // Add selected tickers
             if (selectedTickers.length > 0) {
                 formData.append('selected_tickers', selectedTickers.join(','));
-
-                // Add the plot performance checkbox state
-                const plotPerformance = document.getElementById('plotPerformance').checked;
-                formData.append('plot_performance', plotPerformance);
             }
             
             // Add selected sectors
@@ -1332,11 +2073,71 @@
             }
         });
 
+        // Handle classification form submission
+        document.getElementById('classificationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            
+            // Get basic form values
+            formData.append('name', document.getElementById('classificationName').value);
+            formData.append('ticker', document.getElementById('classificationTicker').value);
+            formData.append('allocation', document.getElementById('classificationAllocation').value);
+            
+            // Handle dropdown fields - use custom input if "custom" is selected
+            const dropdownFields = [
+                {select: 'classificationCurrencyListing', custom: 'classificationCurrencyListingCustom', name: 'currency_listing'},
+                {select: 'classificationMainListing', custom: 'classificationMainListingCustom', name: 'main_listing'},
+                {select: 'classificationBusinessLocation', custom: 'classificationBusinessLocationCustom', name: 'business_location'},
+                {select: 'classificationL5', custom: 'classificationL5Custom', name: 'l5'},
+                {select: 'classificationL4', custom: 'classificationL4Custom', name: 'l4'},
+                {select: 'classificationL3', custom: 'classificationL3Custom', name: 'l3'},
+                {select: 'classificationL2', custom: 'classificationL2Custom', name: 'l2'},
+                {select: 'classificationL1', custom: 'classificationL1Custom', name: 'l1'}
+            ];
+
+            dropdownFields.forEach(field => {
+                const selectElement = document.getElementById(field.select);
+                const customElement = document.getElementById(field.custom);
+                
+                if (selectElement.value === 'custom') {
+                    formData.append(field.name, customElement.value);
+                } else {
+                    formData.append(field.name, selectElement.value);
+                }
+            });
+            
+            try {
+                const response = await fetch('/add_classification', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showClassificationStatus(data.message, 'success');
+                    closeClassificationModal();
+                    // Reload dropdown data to include new values
+                    await loadDropdownData();
+                } else {
+                    showClassificationStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showClassificationStatus(`Error submitting classification: ${error.message}`, 'error');
+            }
+        });
+
         // Close modal when clicking outside
         window.addEventListener('click', function(event) {
-            const modal = document.getElementById('orderModal');
-            if (event.target === modal) {
+            const orderModal = document.getElementById('orderModal');
+            const classificationModal = document.getElementById('classificationModal');
+            
+            if (event.target === orderModal) {
                 closeOrderModal();
+            }
+            if (event.target === classificationModal) {
+                closeClassificationModal();
             }
         });
         
